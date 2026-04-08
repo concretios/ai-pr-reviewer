@@ -74,7 +74,7 @@ find_related_files() {
         echo "=== FILE: ${file} ==="
         cat "$file"
         echo ""
-        ((count++))
+        count=$(( count + 1 ))
       fi
     done < "$WORK_DIR/related_files.txt"
   } > "$WORK_DIR/related_files_content.txt"

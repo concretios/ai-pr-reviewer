@@ -182,7 +182,7 @@ export ACTION_PATH="$SCRIPT_DIR"
 export WORK_DIR="$TEST_DIR/work"
 export POST_INLINE="true"
 export SEVERITY_THRESHOLD="low"
-export BOT_NAME="ai-reviewer"
+export BOT_NAME="dr-concretio"
 export SUBMIT_REVIEW_VERDICT="false"
 export GITHUB_STEP_SUMMARY="$TEST_DIR/step-summary.md"
 

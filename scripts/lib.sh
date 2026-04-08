@@ -60,7 +60,7 @@ retry() {
     delay=$(( base_delay * (2 ** (attempt - 1)) ))
     log_warning "Attempt ${attempt}/${max_attempts} failed. Retrying in ${delay}s..."
     sleep "$delay"
-    ((attempt++))
+    attempt=$(( attempt + 1 ))
   done
 }
 

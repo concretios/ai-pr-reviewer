@@ -323,7 +323,7 @@ post_inline_comments() {
 write_step_summary() {
   if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     {
-      echo "### AI Code Review Results"
+      echo "### 🩺 Dr. Concret.io: Review Results"
       echo ""
       echo "| Metric | Value |"
       echo "|--------|-------|"
@@ -344,7 +344,7 @@ main() {
   PR_NUMBER="${PR_NUMBER:?Missing PR_NUMBER}"
   POST_INLINE="${POST_INLINE:-true}"
   SEVERITY_THRESHOLD="${SEVERITY_THRESHOLD:-low}"
-  BOT_NAME="${BOT_NAME:-ai-reviewer}"
+  BOT_NAME="${BOT_NAME:-dr-concretio}"
   # Sanitize BOT_NAME: only allow alphanumeric, hyphens, underscores.
   # Unsanitized values containing --> would break the HTML comment marker used for dedup.
   BOT_NAME="${BOT_NAME//[^a-zA-Z0-9_-]/}"

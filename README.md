@@ -1,8 +1,9 @@
-# AI PR Reviewer
+# Dr. Concret.io: AI PR Reviewer
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![CI](https://github.com/concretios/ai-pr-reviewer/actions/workflows/ci.yml/badge.svg)](https://github.com/concretios/ai-pr-reviewer/actions/workflows/ci.yml)
 
-Lightweight, reusable GitHub Action for automated AI-powered code review on pull requests using Google Gemini Flash.
+Lightweight GitHub Action for automated AI-powered code review on pull requests using Google Gemini Flash.
 
 Built and maintained by [Concret.io](https://concret.io).
 
@@ -14,12 +15,12 @@ Built and maintained by [Concret.io](https://concret.io).
 4. Open a PR
 
 ```yaml
-name: AI Code Review
+name: Dr. Concret.io Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 jobs:
-  review:
+  diagnose:
     runs-on: ubuntu-latest
     permissions:
       contents: read

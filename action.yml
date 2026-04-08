@@ -13,7 +13,7 @@
 #
 # Get a free Gemini API key at: https://aistudio.google.com/apikey
 
-name: 'Dr. Concret.io — AI PR Reviewer'
+name: 'Dr. Concret.io: AI PR Reviewer'
 description: 'Dr. Concret.io diagnoses your PRs. Lightweight AI-powered code review using Gemini Flash. Auto-discovers project rules and posts structured findings.'
 author: 'Concret.io'
 
@@ -196,11 +196,11 @@ runs:
         PR_NUMBER="${{ steps.pr.outputs.number }}"
         [[ -n "$PR_NUMBER" ]] || exit 0
         gh pr comment "$PR_NUMBER" --body "<!-- concretio-ai-reviewer:${{ inputs.bot_name }} -->
-        ## AI Code Review: Error
+        ## 🩺 Dr. Concret.io: Review Error
 
         The automated review encountered an error. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
 
-        Manual review is required for this PR."
+        Manual review required."
       env:
         GH_TOKEN: ${{ inputs.github_token || github.token }}
 
