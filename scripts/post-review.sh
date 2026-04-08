@@ -84,14 +84,14 @@ format_summary() {
   # Verdict badge
   local verdict_icon
   case "$verdict" in
-    approve)          verdict_icon="Approved" ;;
-    request_changes)  verdict_icon="Changes Requested" ;;
-    *)                verdict_icon="Reviewed" ;;
+    approve)          verdict_icon="🟢 Approved" ;;
+    request_changes)  verdict_icon="🔴 Changes Requested" ;;
+    *)                verdict_icon="💬 Reviewed" ;;
   esac
 
   # Start building the comment body
   local body="${MARKER}
-## AI Code Review: ${verdict_icon}
+## 🩺 Dr. Concret.io — ${verdict_icon}
 
 ${summary}
 "
@@ -173,7 +173,7 @@ $(jq -r '.missing_guardrails[] | "- **\(.file)**: \(.reason)"' "$REVIEW_FILE")
     cost=$(grep '^estimated_cost=' "$WORK_DIR/usage.txt" | cut -d= -f2)
     usage_info="
 ---
-<sub>Model: ${model} | Tokens: ${prompt_tokens} in, ${output_tokens} out | Cost: ~\$${cost}</sub>"
+<sub>🩺 Dr. Concret.io · Model: ${model} · Tokens: ${prompt_tokens} in, ${output_tokens} out · Cost: ~\$${cost}</sub>"
   fi
 
   body+="${usage_info}"
@@ -239,7 +239,7 @@ post_inline_comments() {
           line: .line,
           side: "RIGHT",
           body: (
-            "**[\(.severity | ascii_upcase)] \(.category):** \(.title)\n\n\(.comment)" +
+            "**🩺 [\(.severity | ascii_upcase)] \(.category):** \(.title)\n\n\(.comment)" +
             (if .suggestion and .suggestion != "" then "\n\n**Suggestion:**\n```suggestion\n\(.suggestion)\n```" else "" end)
           )
         }

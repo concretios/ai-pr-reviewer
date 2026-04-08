@@ -1,5 +1,5 @@
-# AI PR Reviewer - Composite Action
-# Provides automated AI-powered code review on pull requests using Google Gemini Flash.
+# Dr. Concret.io - AI PR Reviewer
+# Automated code review on pull requests using Google Gemini Flash.
 # Consumers reference this as: uses: concretios/ai-pr-reviewer@v1
 #
 # Minimum setup (all you need):
@@ -9,12 +9,12 @@
 #
 # Get a free Gemini API key at: https://aistudio.google.com/apikey
 
-name: 'AI PR Reviewer'
-description: 'Lightweight AI-powered code review using Gemini Flash. Auto-discovers project rules and posts structured review comments.'
+name: 'Dr. Concret.io — AI PR Reviewer'
+description: 'Dr. Concret.io diagnoses your PRs. Lightweight AI-powered code review using Gemini Flash. Auto-discovers project rules and posts structured findings.'
 author: 'Concret.io'
 
 branding:
-  icon: 'eye'
+  icon: 'activity'
   color: 'blue'
 
 inputs:
@@ -120,12 +120,12 @@ inputs:
   bot_name:
     description: >
       Name used for the @mention trigger and to identify the bot's comment.
-      With the default "ai-reviewer", trigger a review by commenting:
-        @ai-reviewer review
+      With the default "dr-concretio", trigger a review by commenting:
+        @dr-concretio review
       The bot updates its existing comment in-place on re-triggers to avoid spam.
       Change this if you have multiple AI reviewers in the same repo.
     required: false
-    default: 'ai-reviewer'
+    default: 'dr-concretio'
 
 runs:
   using: 'composite'

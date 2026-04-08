@@ -18,10 +18,10 @@
 #   - .cursor/rules/        (if you use Cursor)
 #
 # TRIGGER: Runs automatically on every PR open/update.
-# MANUAL TRIGGER: Comment "@ai-reviewer review" on any PR
+# MANUAL TRIGGER: Comment "@dr-concretio review" on any PR
 #   (only OWNER, MEMBER, or COLLABORATOR can trigger this way)
 
-name: AI Code Review
+name: Dr. Concret.io Review
 
 on:
   pull_request:
@@ -30,15 +30,15 @@ on:
     types: [created]
 
 jobs:
-  review:
-    # Run on all PR events, OR when an authorized user comments "@ai-reviewer review"
+  diagnose:
+    # Run on all PR events, OR when an authorized user comments "@dr-concretio review"
     # The author_association check prevents external contributors from triggering
     # expensive API calls and protects against prompt injection via PR content.
     if: >
       (github.event_name == 'pull_request') ||
       (github.event_name == 'issue_comment' &&
        github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@ai-reviewer review') &&
+       contains(github.event.comment.body, '@dr-concretio review') &&
        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
        github.actor != 'github-actions[bot]')
 
@@ -99,4 +99,4 @@ jobs:
           # max_files: "20"
 
           # Trigger name for @mention. Change if you run multiple AI reviewers.
-          # bot_name: "ai-reviewer"
+          bot_name: "dr-concretio"

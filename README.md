@@ -56,7 +56,7 @@ The action auto-discovers coding standards from common locations in the repo. No
 | `submit_review_verdict` | No | `false` | Map AI verdict to GitHub APPROVE/REQUEST_CHANGES (blocks merging) |
 | `max_files` | No | `20` | Skip review if PR touches more files than this |
 | `max_diff_size` | No | `10000` | Max diff lines before "large PR" guidance |
-| `bot_name` | No | `ai-reviewer` | Name for @mention trigger and comment identification |
+| `bot_name` | No | `dr-concretio` | Name for @mention trigger and comment identification |
 
 ## Cost
 
@@ -95,7 +95,7 @@ on:
     types: [created]
 ```
 
-Then comment `@ai-reviewer review` on any PR. Only OWNER, MEMBER, and COLLABORATOR can trigger this.
+Then comment `@dr-concretio review` on any PR. Only OWNER, MEMBER, and COLLABORATOR can trigger this.
 
 ## Running Tests Locally
 
