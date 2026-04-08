@@ -20,10 +20,12 @@ find_related_files() {
     case "$file" in
       *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)
         # Match: import ... from './path'  |  require('./path')
+        # grep returns exit 1 when no matches — || true prevents pipefail from
+        # killing the outer loop when a file has no import statements.
         grep -oE "(from|require\()\s*['\"][^'\"]+['\"]" "$file" 2>/dev/null \
           | grep -oE "['\"][^'\"]+['\"]" \
           | tr -d "'" | tr -d '"' \
-          | while IFS= read -r imp; do
+          | (while IFS= read -r imp; do
               [[ "$imp" == ./* || "$imp" == ../* ]] || continue
               local dir
               dir=$(dirname "$file")
@@ -34,20 +36,21 @@ find_related_files() {
                   break
                 fi
               done
-            done
+            done; true)
         ;;
       *.py)
         # Match: from module import ... | import module
+        # grep returns exit 1 when no matches — || true prevents pipefail kill.
         grep -oE "^(from|import)\s+[a-zA-Z_][a-zA-Z0-9_.]*" "$file" 2>/dev/null \
           | awk '{print $2}' \
           | tr '.' '/' \
-          | while IFS= read -r mod; do
+          | (while IFS= read -r mod; do
               for ext in ".py" "/__init__.py"; do
                 if [[ -f "${mod}${ext}" ]]; then
                   echo "${mod}${ext}" >> "$related_tmp"
                 fi
               done
-            done
+            done; true)
         ;;
       *.go)
         # For Go: include other files in the same package directory
@@ -58,13 +61,26 @@ find_related_files() {
     esac
   done < "$WORK_DIR/changed_files.txt"
 
-  # Deduplicate and exclude already-changed files
-  sort -u "$related_tmp" \
-    | while IFS= read -r rf; do
-        if ! grep -qxF "$rf" "$WORK_DIR/changed_files.txt" 2>/dev/null; then
-          echo "$rf"
-        fi
-      done > "$WORK_DIR/related_files.txt"
+  # Deduplicate and exclude already-changed files.
+  # Two pipefail hazards handled here:
+  #   1. sort -u on an empty file exits 0 but produces no output — safe.
+  #   2. The while subshell's exit code is that of the last `grep -qxF` call.
+  #      When grep finds a match (file IS in changed_files) it exits 0 (skip);
+  #      when it finds no match it exits 1 (emit the file). With pipefail the
+  #      pipeline would be killed the moment any file is NOT a duplicate.
+  #      Wrapping in a subshell that always exits 0 via `; true` is safe because
+  #      we don't need the pipeline's exit code — the output file is what matters.
+  # If related_tmp is empty, produce an empty related_files.txt (not missing).
+  if [[ ! -s "$related_tmp" ]]; then
+    : > "$WORK_DIR/related_files.txt"
+  else
+    sort -u "$related_tmp" \
+      | (while IFS= read -r rf; do
+          if ! grep -qxF "$rf" "$WORK_DIR/changed_files.txt" 2>/dev/null; then
+            echo "$rf"
+          fi
+        done; true) > "$WORK_DIR/related_files.txt"
+  fi
 
   # Read related file contents
   local count=0

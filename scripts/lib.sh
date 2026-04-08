@@ -17,7 +17,10 @@ log_group()   { echo "::group::$1"; }
 log_endgroup(){ echo "::endgroup::"; }
 
 # ── Work directory ─────────────────────────────────────────
-WORK_DIR="${WORK_DIR:-${RUNNER_TEMP:-/tmp}/ai-pr-reviewer}"
+# Append GITHUB_RUN_ID to isolate concurrent workflows on the same runner.
+# On GitHub-hosted runners each job gets its own VM, but self-hosted runners
+# can execute multiple jobs in parallel sharing the same RUNNER_TEMP.
+WORK_DIR="${WORK_DIR:-${RUNNER_TEMP:-/tmp}/ai-pr-reviewer-${GITHUB_RUN_ID:-local}}"
 mkdir -p "$WORK_DIR"
 
 # ── Input validation ───────────────────────────────────────

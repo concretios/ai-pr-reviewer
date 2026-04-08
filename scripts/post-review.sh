@@ -196,7 +196,7 @@ post_summary() {
   local comment_id
   comment_id=$(gh api "repos/{owner}/{repo}/issues/${PR_NUMBER}/comments" \
     --paginate 2>/dev/null \
-    | jq -s "[.[][] | select(.body | contains(\"$MARKER\"))] | last | .id")
+    | jq -s --arg marker "$MARKER" '[.[][] | select(.body | contains($marker))] | last | .id')
 
   if [[ -n "$comment_id" && "$comment_id" != "null" ]]; then
     gh api "repos/{owner}/{repo}/issues/comments/${comment_id}" \
@@ -290,10 +290,42 @@ post_inline_comments() {
     local commit_sha
     commit_sha=$(safe_read "$WORK_DIR/commit_sha.txt")
 
+    # Dismiss any previous CHANGES_REQUESTED reviews from this bot before creating a new one.
+    # Without this, every re-trigger (push + synchronize) stacks a new review object on the PR,
+    # leaving stale CHANGES_REQUESTED verdicts that pile up and confuse reviewers.
+    # We identify our bot's reviews by matching the marker in the review body.
+    # Only CHANGES_REQUESTED reviews block merging and need dismissal; COMMENT reviews are
+    # harmless duplicates but we dismiss them too for a clean PR timeline.
+    # gh api returns an empty array — not an error — when there are no reviews.
+    local existing_review_ids
+    existing_review_ids=$(gh api "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews" \
+      --paginate 2>/dev/null \
+      | jq -s --arg marker "$MARKER" '[.[][] | select(
+          (.user.login == "github-actions[bot]") and
+          (.body | contains($marker)) and
+          (.state == "CHANGES_REQUESTED" or .state == "COMMENTED")
+        ) | .id]')
+
+    local dismiss_count
+    dismiss_count=$(echo "$existing_review_ids" | jq 'length')
+    if [[ "$dismiss_count" -gt 0 ]]; then
+      log_info "Dismissing ${dismiss_count} previous bot review(s) before re-posting"
+      while IFS= read -r review_id; do
+        [[ -z "$review_id" || "$review_id" == "null" ]] && continue
+        gh api "repos/{owner}/{repo}/pulls/${PR_NUMBER}/reviews/${review_id}/dismissals" \
+          --method PUT \
+          -f message="Superseded by updated AI review" \
+          > /dev/null 2>&1 || true
+      done < <(echo "$existing_review_ids" | jq -r '.[]')
+    fi
+
     local review_body="AI review: see individual comments below."
     if [[ "$validated_count" -eq 0 ]]; then
       review_body="AI review complete. See summary comment for details."
     fi
+    # Embed the marker in the review body so future runs can identify and dismiss this review.
+    review_body="${MARKER}
+${review_body}"
 
     jq -n \
       --arg body "$review_body" \
@@ -352,7 +384,29 @@ main() {
 
   REVIEW_FILE="$WORK_DIR/review.json"
   DIFF_FILE="$WORK_DIR/diff.txt"
-  MARKER="<!-- concretio-ai-reviewer:${BOT_NAME} -->"
+
+  # Include the workflow name in the marker so that two different workflows
+  # triggered on the same PR with the same bot_name manage separate comment
+  # and review objects instead of overwriting each other.
+  # GITHUB_WORKFLOW is always set on GitHub-hosted runners.
+  # Sanitize it the same way as BOT_NAME: strip everything except alphanumeric, hyphens, underscores.
+  local workflow_slug
+  workflow_slug="${GITHUB_WORKFLOW:-default}"
+  workflow_slug="${workflow_slug//[^a-zA-Z0-9_-]/}"
+  MARKER="<!-- concretio-ai-reviewer:${BOT_NAME}:${workflow_slug} -->"
+
+  # Guard against Gemini hallucinating missing_guardrails when rules were actually loaded.
+  # review.sh writes no_rules.txt="false" when it finds rules files. If rules exist,
+  # strip any missing_guardrails array from the review JSON before formatting.
+  if [[ -f "$WORK_DIR/no_rules.txt" && "$(cat "$WORK_DIR/no_rules.txt")" == "false" ]]; then
+    local guardrails_count
+    guardrails_count=$(jq '.missing_guardrails // [] | length' "$REVIEW_FILE")
+    if [[ "$guardrails_count" -gt 0 ]]; then
+      log_warning "Stripping ${guardrails_count} hallucinated missing_guardrails entries (rules were loaded)"
+      jq 'del(.missing_guardrails)' "$REVIEW_FILE" > "$WORK_DIR/review_cleaned.json" \
+        && mv "$WORK_DIR/review_cleaned.json" "$REVIEW_FILE"
+    fi
+  fi
 
   build_valid_lines
   format_summary

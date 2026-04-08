@@ -185,6 +185,10 @@ runs:
         SEVERITY_THRESHOLD: ${{ inputs.comment_severity_threshold }}
         SUBMIT_REVIEW_VERDICT: ${{ inputs.submit_review_verdict }}
         BOT_NAME: ${{ inputs.bot_name }}
+        # GITHUB_WORKFLOW is part of the default runner environment but we pass
+        # it explicitly so the post-review script can include it in the HTML
+        # marker, preventing two workflows on the same PR from colliding.
+        GITHUB_WORKFLOW: ${{ github.workflow }}
         GH_TOKEN: ${{ inputs.github_token || github.token }}
 
     # If any step above failed, post a visible error comment on the PR
@@ -208,4 +212,4 @@ runs:
     - name: Cleanup
       if: always()
       shell: bash
-      run: rm -rf "${RUNNER_TEMP}/ai-pr-reviewer"
+      run: rm -rf "${RUNNER_TEMP}/ai-pr-reviewer-${GITHUB_RUN_ID}"
