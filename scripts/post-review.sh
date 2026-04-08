@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright 2026 Concret.io
+# Licensed under the Apache License, Version 2.0
+# https://www.apache.org/licenses/LICENSE-2.0
+#
 # post-review.sh - Posts review results to the PR
 # Reads $WORK_DIR/review.json and $WORK_DIR/diff.txt
 # Posts: summary comment (update-in-place) + inline review comments

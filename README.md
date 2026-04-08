@@ -1,6 +1,10 @@
 # AI PR Reviewer
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 Lightweight, reusable GitHub Action for automated AI-powered code review on pull requests using Google Gemini Flash.
+
+Built and maintained by [Concret.io](https://concret.io).
 
 ## Quick Start
 
@@ -126,3 +130,7 @@ ai-pr-reviewer/
 └── .github/workflows/
     └── ci.yml                     # ShellCheck, YAML lint, JSON validation, integration test
 ```
+
+## License
+
+Copyright 2026 [Concret.io](https://concret.io). Licensed under the [Apache License, Version 2.0](LICENSE).

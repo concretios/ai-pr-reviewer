@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright 2026 Concret.io
+# Licensed under the Apache License, Version 2.0
+# https://www.apache.org/licenses/LICENSE-2.0
+#
 # mock-review.sh - Local integration test with mocked external commands
 # Runs the full pipeline (gather-context -> review -> post-review) without
 # requiring GitHub Actions, a GitHub token, or a Gemini API key.

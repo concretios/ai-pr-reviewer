@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright 2026 Concret.io
+# Licensed under the Apache License, Version 2.0
+# https://www.apache.org/licenses/LICENSE-2.0
+#
 # gather-context.sh - Collects PR context for AI review
 # Outputs files to $WORK_DIR/ for consumption by review.sh
 

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright 2026 Concret.io
+# Licensed under the Apache License, Version 2.0
+# https://www.apache.org/licenses/LICENSE-2.0
+#
 # lib.sh - Shared utilities for ai-pr-reviewer scripts
 # Source this file: source "$(dirname "$0")/lib.sh"
 

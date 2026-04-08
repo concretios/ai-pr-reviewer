@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Copyright 2026 Concret.io
+# Licensed under the Apache License, Version 2.0
+# https://www.apache.org/licenses/LICENSE-2.0
+#
 # review.sh - Loads rules, assembles prompt, calls Gemini, parses response
 # Reads context files from $WORK_DIR/ (produced by gather-context.sh)
 # Outputs $WORK_DIR/review.json
