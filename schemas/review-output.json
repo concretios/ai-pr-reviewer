@@ -11,7 +11,7 @@
     "verdict": {
       "type": "string",
       "enum": ["approve", "request_changes", "comment"],
-      "description": "Overall review verdict"
+      "description": "Overall review verdict. Use request_changes only for critical findings or high findings that will realistically trigger on normal production traffic. Use comment for edge-case highs or medium findings. Use approve when the PR is net-positive with no critical/realistic-high issues."
     },
     "findings": {
       "type": "array",
@@ -49,7 +49,7 @@
           },
           "suggestion": {
             "type": "string",
-            "description": "Concrete code fix or action to resolve the issue. Omit this field if no specific fix applies."
+            "description": "Replacement code only — no prose or explanation. This becomes a GitHub one-click suggestion block. Write only the corrected lines as they should appear in the file. Omit entirely if no clean single-block replacement applies."
           }
         },
         "required": ["file", "line", "severity", "category", "title", "comment"]
