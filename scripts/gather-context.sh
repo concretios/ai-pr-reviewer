@@ -20,37 +20,42 @@ find_related_files() {
     case "$file" in
       *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)
         # Match: import ... from './path'  |  require('./path')
-        # grep returns exit 1 when no matches — || true prevents pipefail from
-        # killing the outer loop when a file has no import statements.
-        grep -oE "(from|require\()\s*['\"][^'\"]+['\"]" "$file" 2>/dev/null \
-          | grep -oE "['\"][^'\"]+['\"]" \
-          | tr -d "'" | tr -d '"' \
-          | (while IFS= read -r imp; do
-              [[ "$imp" == ./* || "$imp" == ../* ]] || continue
-              local dir
-              dir=$(dirname "$file")
-              for ext in "" ".ts" ".tsx" ".js" ".jsx" "/index.ts" "/index.tsx" "/index.js"; do
-                local candidate="${dir}/${imp}${ext}"
-                if [[ -f "$candidate" ]]; then
-                  echo "$candidate" >> "$related_tmp"
-                  break
-                fi
+        # The entire pipeline is wrapped in a subshell that always exits 0.
+        # Without this, grep returning exit 1 (no matches) kills the outer
+        # while loop via pipefail. Every stage can legitimately produce no output.
+        (
+          grep -oE "(from|require\()\s*['\"][^'\"]+['\"]" "$file" 2>/dev/null \
+            | grep -oE "['\"][^'\"]+['\"]" \
+            | tr -d "'" | tr -d '"' \
+            | while IFS= read -r imp; do
+                [[ "$imp" == ./* || "$imp" == ../* ]] || continue
+                local dir
+                dir=$(dirname "$file")
+                for ext in "" ".ts" ".tsx" ".js" ".jsx" "/index.ts" "/index.tsx" "/index.js"; do
+                  local candidate="${dir}/${imp}${ext}"
+                  if [[ -f "$candidate" ]]; then
+                    echo "$candidate" >> "$related_tmp"
+                    break
+                  fi
+                done
               done
-            done; true)
+        ) || true
         ;;
       *.py)
         # Match: from module import ... | import module
-        # grep returns exit 1 when no matches — || true prevents pipefail kill.
-        grep -oE "^(from|import)\s+[a-zA-Z_][a-zA-Z0-9_.]*" "$file" 2>/dev/null \
-          | awk '{print $2}' \
-          | tr '.' '/' \
-          | (while IFS= read -r mod; do
-              for ext in ".py" "/__init__.py"; do
-                if [[ -f "${mod}${ext}" ]]; then
-                  echo "${mod}${ext}" >> "$related_tmp"
-                fi
+        # Same pattern: subshell + || true to survive pipefail on no matches.
+        (
+          grep -oE "^(from|import)\s+[a-zA-Z_][a-zA-Z0-9_.]*" "$file" 2>/dev/null \
+            | awk '{print $2}' \
+            | tr '.' '/' \
+            | while IFS= read -r mod; do
+                for ext in ".py" "/__init__.py"; do
+                  if [[ -f "${mod}${ext}" ]]; then
+                    echo "${mod}${ext}" >> "$related_tmp"
+                  fi
+                done
               done
-            done; true)
+        ) || true
         ;;
       *.go)
         # For Go: include other files in the same package directory
