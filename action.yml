@@ -1,0 +1,207 @@
+# AI PR Reviewer - Composite Action
+# Provides automated AI-powered code review on pull requests using Google Gemini Flash.
+# Consumers reference this as: uses: concretios/ai-pr-reviewer@v1
+#
+# Minimum setup (all you need):
+#   - uses: concretios/ai-pr-reviewer@v1
+#     with:
+#       gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+#
+# Get a free Gemini API key at: https://aistudio.google.com/apikey
+
+name: 'AI PR Reviewer'
+description: 'Lightweight AI-powered code review using Gemini Flash. Auto-discovers project rules and posts structured review comments.'
+author: 'Concret.io'
+
+branding:
+  icon: 'eye'
+  color: 'blue'
+
+inputs:
+  gemini_api_key:
+    description: 'Gemini API key. Get one free at https://aistudio.google.com/apikey'
+    required: true
+
+  github_token:
+    description: >
+      GitHub token for posting review comments and reading PR data.
+      Defaults to the built-in github.token which works for most cases.
+      Override with a PAT only if you need cross-repo access or the default
+      token lacks sufficient permissions.
+    required: false
+    # No default here: composite action input defaults cannot evaluate expressions.
+    # Each step uses ${{ inputs.github_token || github.token }} as a fallback.
+
+  rules_paths:
+    description: >
+      Comma-separated list of files or directories containing coding standards.
+      Supports both individual files (CLAUDE.md) and directories (vibe-coding-rules/).
+      The action reads and concatenates all matched content and sends it to Gemini
+      as the project's coding standards.
+      If none of these paths exist in the repo, the AI will suggest creating them.
+    required: false
+    default: 'review-rules.md,CLAUDE.md,AGENTS.md,GEMINI.md,vibe-coding-rules/,.cursor/rules/'
+
+  context_depth:
+    description: >
+      How much code context to send to Gemini. Trade-off between cost and review quality.
+
+      diff-only      - Just the changed lines (+/-). Cheapest (~$0.002/review).
+                       Good for small, focused PRs.
+      changed-files  - Diff + full content of every changed file. Recommended default
+                       (~$0.005-0.015/review). Catches issues that need full file context.
+      related        - Above + files that import or are imported by changed files
+                       (~$0.015-0.035/review). Best for refactors and API changes.
+                       Note: may expand significantly on repos with barrel files (index.ts).
+    required: false
+    default: 'changed-files'
+
+  model:
+    description: >
+      Gemini model to use for the review.
+      Default: gemini-2.5-flash (fast, cheap, good quality).
+      Upgrade to gemini-2.5-pro for deeper analysis on critical PRs (higher cost).
+      Pin to a specific version (e.g., gemini-2.5-flash-preview-04-17) to avoid
+      behavior changes when Google updates the default.
+    required: false
+    default: 'gemini-2.5-flash'
+
+  post_inline_comments:
+    description: >
+      Whether to post inline comments on specific lines of the diff.
+      true  - Post inline comments on each finding (default). Best developer experience.
+      false - Post only the summary comment. Use if inline comment noise is a concern,
+              or for repos where developers prefer a single summary over many comments.
+    required: false
+    default: 'true'
+
+  comment_severity_threshold:
+    description: >
+      Minimum severity level for posting inline comments.
+      Findings below this threshold still appear in the summary comment,
+      but will not generate inline comments on the PR.
+
+      low      - Post inline for all findings: critical, high, medium, low (default)
+      medium   - Post inline for critical, high, medium only
+      high     - Post inline for critical and high only
+      critical - Post inline for critical findings only (least noise)
+    required: false
+    default: 'low'
+
+  submit_review_verdict:
+    description: >
+      Whether to map the AI verdict to a GitHub review event (APPROVE or REQUEST_CHANGES).
+
+      false - AI always posts as COMMENT, never blocks merging (default, safe).
+      true  - AI can APPROVE or REQUEST_CHANGES based on its verdict.
+              WARNING: REQUEST_CHANGES blocks the PR from merging until resolved.
+              Only enable this on repos with mature coding standards files and after
+              validating review quality on a few PRs first.
+    required: false
+    default: 'false'
+
+  max_files:
+    description: >
+      Maximum number of changed files to include in the review.
+      If the PR touches more files than this limit, only the first N files
+      are reviewed and a note is added to the summary.
+      Increase for large monorepo PRs. Decrease to reduce cost on very large PRs.
+    required: false
+    default: '20'
+
+  max_diff_size:
+    description: >
+      Maximum number of diff lines before adding a "large PR" warning.
+      When exceeded, Gemini is instructed to focus on the highest-risk changes.
+      Does not skip the review, just adjusts the prompt guidance.
+    required: false
+    default: '10000'
+
+  bot_name:
+    description: >
+      Name used for the @mention trigger and to identify the bot's comment.
+      With the default "ai-reviewer", trigger a review by commenting:
+        @ai-reviewer review
+      The bot updates its existing comment in-place on re-triggers to avoid spam.
+      Change this if you have multiple AI reviewers in the same repo.
+    required: false
+    default: 'ai-reviewer'
+
+runs:
+  using: 'composite'
+  steps:
+    # Mask the API key immediately so it never appears in logs
+    - name: Mask API key
+      shell: bash
+      run: echo "::add-mask::${{ inputs.gemini_api_key }}"
+
+    # Resolve the PR number from the event context.
+    # Works for both pull_request events and issue_comment events (@mention trigger).
+    - name: Resolve PR number
+      id: pr
+      shell: bash
+      run: |
+        if [[ "${{ github.event_name }}" == "issue_comment" ]]; then
+          PR_NUMBER="${{ github.event.issue.number }}"
+        else
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+        fi
+        echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+    # Gather PR context: diff, changed files, related files, tech stack, project tree.
+    # Output files written to $RUNNER_TEMP/ai-pr-reviewer/
+    - name: Gather context
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/gather-context.sh"
+      env:
+        PR_NUMBER: ${{ steps.pr.outputs.number }}
+        CONTEXT_DEPTH: ${{ inputs.context_depth }}
+        MAX_FILES: ${{ inputs.max_files }}
+        MAX_DIFF_SIZE: ${{ inputs.max_diff_size }}
+        GH_TOKEN: ${{ inputs.github_token || github.token }}
+
+    # Load rules, assemble prompt, call Gemini API, write review.json
+    - name: Run AI review
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/review.sh"
+      env:
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        MODEL: ${{ inputs.model }}
+        RULES_PATHS: ${{ inputs.rules_paths }}
+        ACTION_PATH: ${{ github.action_path }}
+        GH_TOKEN: ${{ inputs.github_token || github.token }}
+
+    # Post summary comment and inline review comments to the PR
+    - name: Post review
+      shell: bash
+      run: bash "${{ github.action_path }}/scripts/post-review.sh"
+      env:
+        PR_NUMBER: ${{ steps.pr.outputs.number }}
+        POST_INLINE: ${{ inputs.post_inline_comments }}
+        SEVERITY_THRESHOLD: ${{ inputs.comment_severity_threshold }}
+        SUBMIT_REVIEW_VERDICT: ${{ inputs.submit_review_verdict }}
+        BOT_NAME: ${{ inputs.bot_name }}
+        GH_TOKEN: ${{ inputs.github_token || github.token }}
+
+    # If any step above failed, post a visible error comment on the PR
+    # so the author knows the review didn't run and why.
+    - name: Post failure notice
+      if: failure()
+      shell: bash
+      run: |
+        PR_NUMBER="${{ steps.pr.outputs.number }}"
+        [[ -n "$PR_NUMBER" ]] || exit 0
+        gh pr comment "$PR_NUMBER" --body "<!-- concretio-ai-reviewer:${{ inputs.bot_name }} -->
+        ## AI Code Review: Error
+
+        The automated review encountered an error. Check the [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.
+
+        Manual review is required for this PR."
+      env:
+        GH_TOKEN: ${{ inputs.github_token || github.token }}
+
+    # Always clean up temp files, even on failure
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: rm -rf "${RUNNER_TEMP}/ai-pr-reviewer"

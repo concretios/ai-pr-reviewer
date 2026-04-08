@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AICodeReviewOutput",
+  "description": "Structured output schema for AI code review. Used with Gemini's responseJsonSchema to guarantee parseable responses.",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "2-3 sentence overview of the PR and review findings"
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["approve", "request_changes", "comment"],
+      "description": "Overall review verdict"
+    },
+    "findings": {
+      "type": "array",
+      "description": "List of specific issues found in the code. Use line: 0 for file-level findings that do not map to a specific line.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "File path relative to repo root"
+          },
+          "line": {
+            "type": "integer",
+            "description": "Line number where the issue starts. Use 0 for file-level findings."
+          },
+          "end_line": {
+            "type": "integer",
+            "description": "Line number where the issue ends (for multi-line findings)"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["correctness", "security", "performance", "style", "architecture", "quality"]
+          },
+          "title": {
+            "type": "string",
+            "description": "Short title for the finding (under 80 characters)"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Explanation of the issue and why it matters. Keep under 200 words."
+          },
+          "suggestion": {
+            "type": "string",
+            "description": "Concrete code fix or action to resolve the issue. Omit this field if no specific fix applies."
+          }
+        },
+        "required": ["file", "line", "severity", "category", "title", "comment"]
+      }
+    },
+    "highlights": {
+      "type": "array",
+      "description": "Things done well in this PR worth acknowledging. Omit or leave empty if nothing stands out.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missing_guardrails": {
+      "type": "array",
+      "description": "Coding standards files that should exist but do not. Only populate when no rules files are found.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "description": "Suggested filename (e.g., review-rules.md)"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why this file should exist"
+          },
+          "suggested_content": {
+            "type": "string",
+            "description": "Starter content for the file, tailored to the detected tech stack"
+          }
+        },
+        "required": ["file", "reason"]
+      }
+    }
+  },
+  "required": ["summary", "verdict", "findings"]
+}

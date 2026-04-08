@@ -1,0 +1,19 @@
+.DS_Store
+*.log
+.env
+.gemini/
+gha-creds-*.json
+node_modules/
+# Claude Code local files (agents/skills live in ~/.claude/ globally)
+.claude/agents/
+.claude/skills/
+.claude/agent-memory/
+.claude/settings.local.json
+
+# Runtime artifacts (produced during local testing)
+tmp/
+*.tmp
+context.json
+prompt.txt
+review.json
+rules.txt

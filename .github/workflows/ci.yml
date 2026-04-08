@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Minimal permissions: only read the repo
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        run: |
+          shellcheck --version
+          # -x follows `source` statements (lib.sh sourced by all scripts)
+          shellcheck -x scripts/*.sh
+
+  yaml-lint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate action.yml
+        run: python3 -c "import yaml; yaml.safe_load(open('action.yml'))"
+
+      - name: Validate consumer workflow example
+        run: python3 -c "import yaml; yaml.safe_load(open('examples/consumer-workflow.yml'))"
+
+      - name: Validate CI workflow
+        run: python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"
+
+  json-validate:
+    name: JSON Schema Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate review-output.json
+        run: jq . schemas/review-output.json > /dev/null
+
+  integration-test:
+    name: Integration Test (mocked)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run mock integration test
+        run: bash test/mock-review.sh
