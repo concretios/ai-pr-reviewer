@@ -6,11 +6,12 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { Snapshot } from '../src/source/snapshot.js';
 import { inventory, parseNames } from '../src/source/diff.js';
-import { lookup } from '../src/source/context.js';
+import { lookup, addRelationships } from '../src/source/context.js';
 import { readRules } from '../src/source/rules.js';
 import { resolveSettings } from '../src/config.js';
 import { freshnessGate } from '../src/github/freshness.js';
 import { manifest, api } from './helpers.js';
+import { hash } from '../src/util.js';
 import type { PullRequest } from '../src/github/authorize.js';
 const exec = promisify(execFile);
 const directories: string[] = []; const snapshots: Snapshot[] = [];
@@ -100,5 +101,28 @@ describe('immutable source and diff coverage', () => {
     await writeFile(join(f.dir, 'AGENTS.md'), 'changed base rules'); await f.git('add', '.'); await f.git('commit', '-m', 'changed rules');
     current.base.sha = await f.git('rev-parse', 'HEAD'); expect(await gate()).toBe(false);
     current = { ...pr, head: { ...pr.head, sha: f.base } }; expect(await gate()).toBe(false);
+  });
+  it('addRelationships resolves a same-hop import and an adjacent test concurrently, both correctly attributed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'review-fixture-')); directories.push(dir);
+    const git = async (...args: string[]) => (await exec('git', ['-C', dir, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', ...args])).stdout.trim();
+    await git('init', '-b', 'main');
+    await mkdir(join(dir, 'src'));
+    await writeFile(join(dir, 'src/helper.ts'), 'export function helper() { return 1; }\n');
+    await writeFile(join(dir, 'src/main.ts'), 'export function main() { return 0; }\n');
+    await writeFile(join(dir, 'src/main.test.ts'), "it('main', () => {});\n");
+    await git('add', '.'); await git('commit', '-m', 'base'); const base = await git('rev-parse', 'HEAD');
+    await writeFile(join(dir, 'src/main.ts'), "import { helper } from './helper';\nexport function main() { return helper(); }\n");
+    await git('add', '.'); await git('commit', '-m', 'head'); const head = await git('rev-parse', 'HEAD');
+    const s = await Snapshot.capture({ ...manifest, baseSha: base, headSha: head }, dir, AbortSignal.timeout(10000)); snapshots.push(s);
+    const inv = await inventory(s);
+    await addRelationships(s, inv);
+    const importRelationId = `r-${hash(['src/main.ts', 'src/helper.ts']).slice(0, 24)}`;
+    const testRelationId = `r-${hash(['src/main.ts', 'src/main.test.ts']).slice(0, 24)}`;
+    expect(inv.relations.map(r => r.id).sort()).toEqual([importRelationId, testRelationId].sort());
+    const mainAtomId = inv.atoms.find(a => a.path === 'src/main.ts')!.id;
+    for (const relation of inv.relations) {
+      expect(relation.atomIds).toContain(mainAtomId);
+      expect(relation.evidenceIds.some(id => inv.evidence.get(id)!.path !== 'src/main.ts')).toBe(true);
+    }
   });
 });

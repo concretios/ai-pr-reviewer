@@ -101,7 +101,7 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
         if (!await recoverSplit(task, preflight, compact, context)) unresolved(task, context.length ? 'Required context cannot fit within request ceiling' : 'Indivisible input cannot fit');
         return;
       }
-      const ticket = ledger.reserve();
+      const ticket = ledger.reserve(preflight + limits.output);
       if (!ticket) { unresolved(task, 'Global token or generation-attempt budget exhausted'); return; }
       const attempt: Attempt = { taskId: task.id, preflight }; run.attempts.push(attempt);
       options.onProgress?.(`Reviewing ${task.kind} task, generation ${ledger.snapshot().attempts}/${limits.attempts}`);
@@ -200,7 +200,8 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
   function finalize(): Analysis {
     close();
     // Use current atoms if planning refined a range before cancellation.
-    for (const id of Object.keys(run.atoms)) if (!inventory.atoms.some(a => a.id === id)) delete run.atoms[id];
+    const validAtomIds = new Set(inventory.atoms.map(a => a.id));
+    for (const id of Object.keys(run.atoms)) if (!validAtomIds.has(id)) delete run.atoms[id];
     for (const atom of inventory.atoms) run.atoms[atom.id] ??= { status: 'pending', reason: 'Generation cutoff, cancellation, or scheduling incomplete' };
     run.status = deriveReviewStatus(run);
     run.analysisStatus = deriveReviewStatus({ ...run, superseded: false }) as Analysis['analysisStatus'];

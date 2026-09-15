@@ -47332,10 +47332,10 @@ async function addRelationships(snapshot, inventory2) {
     for (const candidate of [`${stem}.test.ts`, `${stem}.spec.ts`, `${stem}.test.js`, `${import_node_path2.posix.dirname(path)}/test_${import_node_path2.posix.basename(stem)}.py`]) {
       if (tree.has(candidate)) targets.add(candidate);
     }
-    for (const target of [...targets].sort().slice(0, 4)) {
-      if (target === path) continue;
+    const candidates = [...targets].sort().slice(0, 4).filter((target) => target !== path);
+    const relations = await Promise.all(candidates.map(async (target) => {
       const endpoint = await snapshot.evidence(target, "RIGHT", 1, 200);
-      if (!endpoint) continue;
+      if (!endpoint) return void 0;
       inventory2.evidence.set(endpoint.id, endpoint);
       const others = inventory2.atoms.filter((a) => a.path === target);
       const relation = {
@@ -47344,8 +47344,9 @@ async function addRelationships(snapshot, inventory2) {
         atomIds: unique([...atoms, ...others].map((a) => a.id)),
         evidenceIds: unique([...atoms.flatMap((a) => a.evidenceIds), ...others.flatMap((a) => a.evidenceIds), endpoint.id])
       };
-      inventory2.relations.push(relation);
-    }
+      return relation;
+    }));
+    for (const relation of relations) if (relation) inventory2.relations.push(relation);
   }
 }
 async function lookup(snapshot, request, signal = snapshot.signal) {
@@ -47711,7 +47712,7 @@ async function runReview(options) {
         if (!await recoverSplit(task, preflight, compact, context)) unresolved(task, context.length ? "Required context cannot fit within request ceiling" : "Indivisible input cannot fit");
         return;
       }
-      const ticket = ledger.reserve();
+      const ticket = ledger.reserve(preflight + limits2.output);
       if (!ticket) {
         unresolved(task, "Global token or generation-attempt budget exhausted");
         return;
@@ -47847,7 +47848,8 @@ async function runReview(options) {
   return finalize2();
   function finalize2() {
     close();
-    for (const id2 of Object.keys(run.atoms)) if (!inventory2.atoms.some((a) => a.id === id2)) delete run.atoms[id2];
+    const validAtomIds = new Set(inventory2.atoms.map((a) => a.id));
+    for (const id2 of Object.keys(run.atoms)) if (!validAtomIds.has(id2)) delete run.atoms[id2];
     for (const atom of inventory2.atoms) run.atoms[atom.id] ??= { status: "pending", reason: "Generation cutoff, cancellation, or scheduling incomplete" };
     run.status = deriveReviewStatus(run);
     run.analysisStatus = deriveReviewStatus({ ...run, superseded: false });
@@ -47857,7 +47859,7 @@ async function runReview(options) {
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"1d73718e4bec29c7926470e12de138fadb3f1419a4bfabba12fc8de0bb06d993"}` : "development";
+var actionRevision = true ? `sha256:${"8e6a691446896706a78ebeb5b9245fd944d496f0f9b09d19ec8ebcc05359c812"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",
