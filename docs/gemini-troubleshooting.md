@@ -62,7 +62,7 @@ Start with the failed step and `report.json`, then classify the boundary:
 
 | Symptom | Inspect next |
 | --- | --- |
-| HTTP 400 | Provider status/message, wire schema, generation settings. Reproduce on synthetic source and change one variable at a time. |
+| HTTP 400 | Read the provider status/message first. `API key not valid` during countTokens is a credential failure, not a schema failure. For schema/settings errors, reproduce on synthetic source and change one variable at a time. |
 | 401/403/404 | Key validity, endpoint and actual model access. Do not print keys or silently switch models. |
 | 429/5xx | Retry classification, delay, finite allowance and unknown usage. |
 | STOP but unavailable | Decode diagnostics, response kind, exact IDs and evidence validation. |
@@ -139,3 +139,14 @@ Their text remains available; line discussions and resolved threads were preserv
 Consumer migration PRs use the same audited action SHA and retain previous pins for
 rollback. A complete workflow revert is required for v1 consumers because inputs
 and event handling also changed.
+
+### Consumer credential check
+
+Two consumer rollout runs returned `countTokens HTTP 400: INVALID_ARGUMENT: API
+key not valid` before any generation. Their required unavailable-review comments
+were published correctly. Inspect `analysis.diagnostics` in the report artifact
+when the short job failure says only that review is unavailable. Missing optional
+rules-file notices are separate from this cause. Replace the affected repository's
+authorized `GEMINI_API_KEY`, then rerun; do not weaken validation, switch models,
+or increase retry budgets to work around an invalid key. Credentials that work in
+Trace do not establish validity of another repository's configured secret.
