@@ -4,6 +4,29 @@ const usageSchema = z.object({ totalTokenCount: z.number().int().nonnegative().o
   candidatesTokenCount: z.number().int().nonnegative().optional(), thoughtsTokenCount: z.number().int().nonnegative().optional() });
 const responseSchema = z.object({ usageMetadata: usageSchema.optional(), promptFeedback: z.object({ blockReason: z.string().optional() }).optional(),
   candidates: z.array(z.object({ finishReason: z.string().optional(), content: z.object({ parts: z.array(z.object({ text: z.string().optional(), thought: z.boolean().optional() })) }).optional() })).optional() });
+
+// Keep provider diagnostics bounded and redact credentials before they reach reports.
+async function errorDetail(response: Response, key: string): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return '';
+  try {
+    const chunks: Uint8Array[] = []; let size = 0;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 16384) return '';
+      chunks.push(value);
+    }
+    const envelope = z.object({ error: z.object({ status: z.string().optional(), message: z.string().optional() }) })
+      .safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+    if (!envelope.success) return '';
+    let detail = [envelope.data.error.status, envelope.data.error.message].filter(Boolean).join(': ');
+    if (key) detail = detail.split(key).join('[REDACTED]');
+    return detail.replace(/AIza[0-9A-Za-z_-]{35}/g, '[REDACTED]').replace(/[\p{Cc}\p{Cf}]/gu, ' ').slice(0, 1200);
+  } catch { return ''; }
+  finally { await reader.cancel().catch(() => {}); }
+}
 export class Gemini implements Provider {
   constructor(private readonly key: string, private readonly transport: typeof fetch = fetch) {}
   private async post(model: string, method: string, body: unknown, signal: AbortSignal): Promise<unknown> {
@@ -17,7 +40,8 @@ export class Gemini implements Provider {
       const retry = response.headers.get('retry-after');
       const seconds = retry ? Number(retry) : 0;
       const retryAfter = Number.isFinite(seconds) ? seconds * 1000 : Math.max(0, Date.parse(retry!) - Date.now());
-      throw new ProviderError(`Gemini HTTP ${response.status}`, response.status === 429 || response.status === 408 || response.status >= 500, Math.min(30000, retryAfter || 0));
+      const detail = await errorDetail(response, this.key);
+      throw new ProviderError(`Gemini ${method} HTTP ${response.status}${detail ? `: ${detail}` : ''}`, response.status === 429 || response.status === 408 || response.status >= 500, Math.min(30000, retryAfter || 0));
     }
     try { return await response.json(); } catch { throw new ProviderError('Gemini returned an unreadable response envelope; usage unknown', false); }
   }

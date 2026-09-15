@@ -46769,7 +46769,12 @@ var TaskResponseSchema = external_exports.discriminatedUnion("kind", [
     findings: external_exports.array(FindingSchema).max(100)
   })
 ]);
-var wireSchema = external_exports.toJSONSchema(TaskResponseSchema, { target: "draft-7" });
+var wireSchema = external_exports.toJSONSchema(TaskResponseSchema, {
+  target: "draft-7",
+  override: ({ jsonSchema }) => {
+    delete jsonSchema.maxItems;
+  }
+});
 delete wireSchema.$schema;
 
 // src/review/validate.ts
@@ -47436,6 +47441,31 @@ var responseSchema = external_exports.object({
   promptFeedback: external_exports.object({ blockReason: external_exports.string().optional() }).optional(),
   candidates: external_exports.array(external_exports.object({ finishReason: external_exports.string().optional(), content: external_exports.object({ parts: external_exports.array(external_exports.object({ text: external_exports.string().optional(), thought: external_exports.boolean().optional() })) }).optional() })).optional()
 });
+async function errorDetail(response, key) {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  try {
+    const chunks = [];
+    let size = 0;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 16384) return "";
+      chunks.push(value);
+    }
+    const envelope = external_exports.object({ error: external_exports.object({ status: external_exports.string().optional(), message: external_exports.string().optional() }) }).safeParse(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    if (!envelope.success) return "";
+    let detail = [envelope.data.error.status, envelope.data.error.message].filter(Boolean).join(": ");
+    if (key) detail = detail.split(key).join("[REDACTED]");
+    return detail.replace(/AIza[0-9A-Za-z_-]{35}/g, "[REDACTED]").replace(/[\p{Cc}\p{Cf}]/gu, " ").slice(0, 1200);
+  } catch {
+    return "";
+  } finally {
+    await reader.cancel().catch(() => {
+    });
+  }
+}
 var Gemini = class {
   constructor(key, transport = fetch) {
     this.key = key;
@@ -47459,7 +47489,8 @@ var Gemini = class {
       const retry = response.headers.get("retry-after");
       const seconds = retry ? Number(retry) : 0;
       const retryAfter = Number.isFinite(seconds) ? seconds * 1e3 : Math.max(0, Date.parse(retry) - Date.now());
-      throw new ProviderError(`Gemini HTTP ${response.status}`, response.status === 429 || response.status === 408 || response.status >= 500, Math.min(3e4, retryAfter || 0));
+      const detail = await errorDetail(response, this.key);
+      throw new ProviderError(`Gemini ${method} HTTP ${response.status}${detail ? `: ${detail}` : ""}`, response.status === 429 || response.status === 408 || response.status >= 500, Math.min(3e4, retryAfter || 0));
     }
     try {
       return await response.json();
@@ -47857,7 +47888,7 @@ async function runReview(options) {
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"1d73718e4bec29c7926470e12de138fadb3f1419a4bfabba12fc8de0bb06d993"}` : "development";
+var actionRevision = true ? `sha256:${"a9e0079617aad309696a4b20bca4a75597a8b760590b23f31a18021fac484d1e"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",

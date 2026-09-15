@@ -23,6 +23,10 @@ export const TaskResponseSchema = z.discriminatedUnion('kind', [
 export type Finding = z.infer<typeof FindingSchema>;
 export type LookupRequest = z.infer<typeof LookupSchema>;
 export type TaskResponse = z.infer<typeof TaskResponseSchema>;
-// Gemini supports anyOf rather than a root discriminated oneOf.
-export const wireSchema = z.toJSONSchema(TaskResponseSchema, { target: 'draft-7' });
+// Nested maxItems constraints make Gemini reject this schema with HTTP 400.
+// They remain mandatory in TaskResponseSchema; omit only the generation hints.
+export const wireSchema = z.toJSONSchema(TaskResponseSchema, {
+  target: 'draft-7',
+  override: ({ jsonSchema }) => { delete jsonSchema.maxItems; },
+});
 delete wireSchema.$schema;

@@ -14,7 +14,6 @@
         },
         "requests": {
           "minItems": 1,
-          "maxItems": 4,
           "type": "array",
           "items": {
             "oneOf": [
@@ -139,7 +138,6 @@
           }
         },
         "findings": {
-          "maxItems": 100,
           "type": "array",
           "items": {
             "type": "object",
@@ -175,7 +173,6 @@
               },
               "introducedByAtomIds": {
                 "minItems": 1,
-                "maxItems": 100,
                 "type": "array",
                 "items": {
                   "type": "string",
@@ -185,7 +182,6 @@
               },
               "evidenceIds": {
                 "minItems": 1,
-                "maxItems": 100,
                 "type": "array",
                 "items": {
                   "type": "string",
