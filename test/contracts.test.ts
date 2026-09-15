@@ -5,6 +5,7 @@ import { Gemini } from '../src/providers/gemini.js';
 import { requestFor } from '../src/providers/provider.js';
 import { reviewTask } from '../src/planning/planner.js';
 import { validateFindings } from '../src/review/validate.js';
+import { TaskResponseSchema, wireSchema } from '../src/review/schema.js';
 import { source, settings, rules, api, finding } from './helpers.js';
 const repo = { id: 1, full_name: 'owner/repo', default_branch: 'main' };
 const pr = { number: 29, state: 'open', user: { login: 'dev' }, base: { repo, sha: 'a'.repeat(40), ref: 'main' }, head: { repo, sha: 'b'.repeat(40), ref: 'feature' } };
@@ -52,6 +53,41 @@ describe('authorization before model use', () => {
   });
 });
 describe('wire contract and evidence', () => {
+  it('keeps array caps in local validation without expanding the Gemini response grammar', () => {
+    expect(JSON.stringify(wireSchema)).not.toContain('"maxItems"');
+    const response = { kind: 'result', taskId: 'probe', items: [], findings: [finding] };
+    expect(TaskResponseSchema.safeParse(response).success).toBe(true);
+    expect(TaskResponseSchema.safeParse({ ...response, findings: Array(101).fill(finding) }).success).toBe(false);
+    expect(TaskResponseSchema.safeParse({ ...response, findings: [{ ...finding, evidenceIds: Array(101).fill('e0') }] }).success).toBe(false);
+    const lookup = { kind: 'search', literal: 'symbol', side: 'RIGHT' };
+    expect(TaskResponseSchema.safeParse({ kind: 'context_request', taskId: 'probe', requests: Array(5).fill(lookup) }).success).toBe(false);
+  });
+  it('constrains every response and lookup discriminator using supported enums', () => {
+    const schema = JSON.stringify(wireSchema);
+    expect(schema).not.toContain('"const"');
+    for (const kind of ['context_request', 'result', 'range', 'search']) {
+      expect(schema).toContain(`"enum":["${kind}"]`);
+    }
+    expect(TaskResponseSchema.safeParse({ kind: 'review', taskId: 'probe', items: [], findings: [] }).success).toBe(false);
+  });
+  it('retains useful HTTP diagnostics while redacting credentials and control characters', async () => {
+    const transport = vi.fn(async () => new Response(JSON.stringify({ error: {
+      status: 'INVALID_ARGUMENT', message: 'Invalid response schema\nkey=test-key\u001b[31m',
+    } }), { status: 400 }));
+    const g = new Gemini('test-key', transport);
+    const req = requestFor(reviewTask(source().atoms), source(), rules, settings.model, 32768);
+    await expect(g.generateOnce(req, new AbortController().signal)).rejects.toMatchObject({
+      message: 'Gemini generateContent HTTP 400: INVALID_ARGUMENT: Invalid response schema key=[REDACTED] [31m', retryable: false,
+    });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+  it.each(['not JSON', JSON.stringify({ error: { message: 'x'.repeat(17000) } })])('handles malformed or oversized error bodies', async body => {
+    const g = new Gemini('test-key', async () => new Response(body, { status: 503, headers: { 'retry-after': '2' } }));
+    const req = requestFor(reviewTask(source().atoms), source(), rules, settings.model, 32768);
+    await expect(g.generateOnce(req, new AbortController().signal)).rejects.toMatchObject({
+      message: 'Gemini generateContent HTTP 503', retryable: true, retryAfterMs: 2000,
+    });
+  });
   it('counts canonical requests and posts a single generation without hidden retries', async () => {
     const transport = vi.fn(async (_url: unknown, init?: RequestInit) => {
       const body = JSON.parse(init!.body as string);

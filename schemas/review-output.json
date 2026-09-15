@@ -3,18 +3,25 @@
     {
       "type": "object",
       "properties": {
-        "kind": {
+        "protocolVersion": {
           "type": "string",
-          "const": "context_request"
+          "enum": [
+            "compact-v2"
+          ]
         },
-        "taskId": {
+        "requestId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 200
         },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "context_request"
+          ]
+        },
         "requests": {
           "minItems": 1,
-          "maxItems": 4,
           "type": "array",
           "items": {
             "oneOf": [
@@ -23,7 +30,9 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "const": "range"
+                    "enum": [
+                      "range"
+                    ]
                   },
                   "path": {
                     "type": "string",
@@ -62,7 +71,9 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "const": "search"
+                    "enum": [
+                      "search"
+                    ]
                   },
                   "literal": {
                     "type": "string",
@@ -89,8 +100,9 @@
         }
       },
       "required": [
+        "protocolVersion",
+        "requestId",
         "kind",
-        "taskId",
         "requests"
       ],
       "additionalProperties": false
@@ -98,16 +110,32 @@
     {
       "type": "object",
       "properties": {
-        "kind": {
+        "protocolVersion": {
           "type": "string",
-          "const": "result"
+          "enum": [
+            "compact-v2"
+          ]
         },
-        "taskId": {
+        "requestId": {
           "type": "string",
           "minLength": 1,
           "maxLength": 200
         },
-        "items": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "result"
+          ]
+        },
+        "reviewedIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "unresolved": {
           "type": "array",
           "items": {
             "type": "object",
@@ -117,13 +145,6 @@
                 "minLength": 1,
                 "maxLength": 200
               },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "reviewed",
-                  "unresolved"
-                ]
-              },
               "reason": {
                 "type": "string",
                 "minLength": 1,
@@ -132,18 +153,27 @@
             },
             "required": [
               "id",
-              "status",
               "reason"
             ],
             "additionalProperties": false
           }
         },
         "findings": {
-          "maxItems": 100,
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "introduced_failure",
+                  "existing_issue",
+                  "improvement",
+                  "preference",
+                  "insufficient_evidence"
+                ],
+                "description": "Classify the causal claim. Only introduced_failure is publishable. Cosmetic changes, preferences and descriptions of fixes are not introduced failures."
+              },
               "severity": {
                 "type": "string",
                 "enum": [
@@ -161,21 +191,23 @@
               "changedBehavior": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "Specific BEFORE versus AFTER behavior. Describe what the PR changes, not an imagined implementation."
               },
               "trigger": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "Concrete supported input or situation that makes the NEW code fail. Merely rendering a changed component is not a failing trigger."
               },
               "consequence": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "Incorrect behavior caused by the NEW code under the trigger, and why it violates a supported requirement. A smaller font, more badges, or an overlay preventing races is not itself a failure. Do not describe what would fail WITHOUT the fix."
               },
               "introducedByAtomIds": {
                 "minItems": 1,
-                "maxItems": 100,
                 "type": "array",
                 "items": {
                   "type": "string",
@@ -185,7 +217,6 @@
               },
               "evidenceIds": {
                 "minItems": 1,
-                "maxItems": 100,
                 "type": "array",
                 "items": {
                   "type": "string",
@@ -230,6 +261,7 @@
               }
             },
             "required": [
+              "classification",
               "severity",
               "title",
               "changedBehavior",
@@ -244,9 +276,11 @@
         }
       },
       "required": [
+        "protocolVersion",
+        "requestId",
         "kind",
-        "taskId",
-        "items",
+        "reviewedIds",
+        "unresolved",
         "findings"
       ],
       "additionalProperties": false

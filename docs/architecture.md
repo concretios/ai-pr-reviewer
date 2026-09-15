@@ -15,7 +15,7 @@ flowchart TD
   I --> J[Persist report and outputs, derive exit code]
 ```
 
-The provider boundary uses native REST fetch and has no SDK retries. Counting and generation share the canonical request. The generated wire schema comes from Zod and is embedded with both prompts and all runtime dependencies in `dist/index.js`.
+The provider boundary uses native REST fetch and has no SDK retries. Counting and generation share the canonical request. The generated wire schema projects Zod into Gemini-compatible constraints: omit `maxItems` and encode `const` literals as single-value enums. The strict local Zod schema retains all original validation limits. See the [incident guide](gemini-troubleshooting.md). The wire schema comes from Zod and is embedded with both prompts and all runtime dependencies in `dist/index.js`.
 
 ## Source identity
 
@@ -41,25 +41,25 @@ A valid application result requires STOP, complete JSON, the wire schema, exact 
 
 The ledger synchronously reserves the input ceiling plus output limit before each generation. Reported totalTokenCount settles the reservation once, without separately adding thoughtsTokenCount. Unknown usage retains the reservation. All retries and split descendants share generation-attempt/token budgets. Count calls, source reads, backoff, and publication share the wall-clock deadline.
 
+The separate [usage report](usage-and-cost.md) aggregates reported generation tokens and estimates standard text API cost per attempt. It includes retries and invalid responses, preserves unknown usage, and never prices ledger reservations or double counts thinking.
+
 Generation is bounded to 120 seconds and ends before the finalization reserve. Closure aborts the execution epoch and settles outstanding reservations conservatively. Every continuation checks epoch state before processing results, accepting context, scheduling work, or mutating state. Final reports are detached from worker state, so providers that ignore cancellation cannot reopen finalized reports.
 
 Nonsplitting allowances are shared by a task lineage: one schema/JSON replacement, one retryable transport retry, one compact singleton retry with 8,192 thinking tokens, and one lookup round. Authentication/permanent errors and blocked generations fail the affected obligation explicitly. Partial completion remains useful; no completed obligations means unavailable.
 
 ## Publication
 
-Every accepted concern appears in required detail pages, irrespective of inline threshold or anchor availability. Pages remain below 50,000 UTF-8 bytes including markers. A required summary presents coverage, captured SHA, concerns, usage, source limitations, and delivery limitations. Requested inline reviews are best effort and always specify COMMENT and the captured commit_id.
+Every accepted concern persists in the required main comment or size-triggered overflow pages, irrespective of inline threshold or anchor availability. Comments stay below 50,000 UTF-8 bytes including state and markup. The main comment has locally rendered Dr. Concret.io branding, diagnosis, coverage, SHA, usage and collapsed findings/limitations/history.
 
-Operations have deterministic IDs, intended-content hashes, finding IDs, required/best-effort flags, and pending/confirmed/failed/unconfirmed states. Reconciliation trusts both marker and author database ID. Identical writes are skipped. An ambiguous write gets one list-and-match reconciliation; inconclusive results remain unconfirmed and are never blindly recreated. Previous advisory reviews are not dismissed.
+The publisher first reconciles existing line/file findings by trusted author, reviewer identity, captured commit, finding ID and anchor. Legacy IDs require a trusted matching parent review. It confirms the required main-comment preparation before sending missing line findings in COMMENT reviews and unanchored single-current-file findings via file comments. Other findings remain in the fallback. A required final update reports delivery; incomplete inline delivery is nonfatal. Previously resolved discussions are preserved. Exact IDs include wording, so this is not semantic deduplication.
 
-Freshness is checked before publication, before stages, and before each subsequent page/review. Changed head, closed PR, or retargeted base stops new writes. Ordinary base advancement is accepted only if the merge base, governing rule/configuration identity, and consumed captured-base blobs remain equivalent. Confirmed earlier writes are retained in the ledger if a later gate fails. Every required page and summary is in the final operation set, including writes that were never issued.
+Operations retain deterministic IDs, intended-content hashes, finding IDs, required/best-effort flags and delivery state. Trusted marker/author matching, one bounded reconciliation after ambiguous writes, and freshness gates remain mandatory. A possibly accepted write is never blindly recreated. Source identity changes stop subsequent writes while preserving earlier confirmed operations.
 
 ### Publication ordering
 
-When available, workflow creation time, numeric run ID, and attempt number determine result order. Queue order is not treated as workflow creation order. Older/partial attempts cannot overwrite a newer completed result. The summary separates last completed result, latest attempt, and an older or unordered current attempt. An analysis with failed detail delivery does not replace the completed-result section.
+Workflow creation time, run ID and attempt order results when available. State version 2 parses legacy current/latest/completed records. Distinct historical records are collapsed. The latest known result remains primary when a known older attempt publishes; unknown ordering is explicitly labeled. Required delivery failure does not promote a completed record. Historical full findings remain in comment edit history or their prior detail pages; hidden state stores only compact result metadata.
 
-**Minimum-permission fallback:** GitHub's workflow-run metadata endpoint can require `actions: read`, while the planned consumer permissions deliberately omit it. The engine attempts the read without requiring extra permissions. If creation time is unavailable, different-run ordering is unconfirmed and existing records are conservatively preserved. Same-run attempts still order by attempt number. This is an explicit implementation adjustment to the plan's otherwise incompatible timestamp/minimum-permission requirements. Consumers that already grant metadata access get full timestamp ordering. The fallback is covered by deterministic tests.
-
-Cross-workflow consumers must use the same repository/PR publication concurrency group, as in both examples. Read/merge/update is not a distributed compare-and-swap primitive and cannot protect arbitrary consumers that bypass the shared concurrency contract.
+The examples grant actions: read. When a consumer adds that permission, the publisher attempts bounded timestamp backfills for existing records. Missing metadata keeps the conservative fallback. Cross-workflow consumers must retain the same per-PR concurrency group; read/merge/update is not distributed compare-and-swap.
 
 ## Finalization and exit
 
@@ -84,3 +84,13 @@ Configuration/internal errors and unavailable analysis also fail. Findings do no
 - [GitHub concurrency and queue: max](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
 
 Official metadata, token-count, review, concurrency, and v7 action release references were checked on 2026-09-15. Paid provider response compatibility and real GitHub runner execution remain release gates; mocked contract checks do not substitute for them.
+
+## Provider projection and compact-v2
+
+The provider-facing source table combines only compatible overlapping/adjacent evidence windows. Every original evidence interval remains explicit. Conflicts, inconsistent line counts and gaps never produce invented combined source. Atom text is omitted only when the included associated evidence reconstructs it exactly. Internal inventory and artifacts retain stable IDs and their existing text representation.
+
+Ordered rules precede variable task data within user content for implicit cache opportunities; they never become system instructions. Lookup results reference source-table evidence. Short aliases exist only on the wire. A request binding includes stable task/mapping identity, rules, source, schema, settings and repair feedback. Responses must return compact-v2 and the exact requestId. Explicit reviewedIds and unresolved entries partition expected obligations before aliases translate to stable IDs and existing validation runs. Old response schemas remain available for internal/historical decoding, never as a live fallback.
+
+The invalid replacement receives a bounded error code, not raw output. Its complete payload is recounted. No retry allowance, input limit, generation budget, output ceiling or thinking setting increases. Attempt metadata records purpose, outcome, request hash, protocol version and effective thinking budget; cache counts remain optional.
+
+Compact-v2 candidates carry an explicit causal classification. Only introduced_failure translates to an internal finding; improvements, preferences, existing issues and insufficient evidence are diagnostic-only. This is model-reported triage, not semantic proof.

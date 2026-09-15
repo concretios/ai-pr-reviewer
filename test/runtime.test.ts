@@ -26,7 +26,7 @@ describe('harness completion and finite recovery', () => {
   });
   it('STOP plus a context request completes no work and repeated requests stay unresolved', async () => {
     const o = options();
-    o.provider = provider(async req => ({ finishReason: 'STOP', text: JSON.stringify({ kind: 'context_request', taskId: taskInput(req).taskId,
+    o.provider = provider(async req => ({ finishReason: 'STOP', text: JSON.stringify({ kind: 'context_request', protocolVersion: taskInput(req).protocolVersion, requestId: taskInput(req).requestId,
       requests: [{ kind: 'range', path: 'file0.ts', side: 'RIGHT', start: 1, end: 1 }] }) }));
     o.lookup.mockResolvedValue({ request: {}, evidence: [...o.inventory.evidence.values()], limited: false });
     const run = await runReview(o);
@@ -36,9 +36,9 @@ describe('harness completion and finite recovery', () => {
   it.each(['missing', 'duplicate', 'foreign', 'json'])('rejects %s IDs/JSON with only one replacement', async kind => {
     const o = options(); o.provider = provider(async req => {
       const value = JSON.parse(result(req).text);
-      if (kind === 'missing') value.items = [];
-      if (kind === 'duplicate') value.items.push(value.items[0]);
-      if (kind === 'foreign') value.items[0].id = 'bogus';
+      if (kind === 'missing') value.reviewedIds = [];
+      if (kind === 'duplicate') value.reviewedIds.push(value.reviewedIds[0]);
+      if (kind === 'foreign') value.reviewedIds[0] = 'bogus';
       return { finishReason: 'STOP', text: kind === 'json' ? '{' : JSON.stringify(value) };
     });
     const run = await runReview(o); expect(run.status).toBe('unavailable'); expect(run.usage.attempts).toBe(2);
@@ -71,7 +71,7 @@ describe('harness completion and finite recovery', () => {
     o.inventory.relations.push({ id: 'r1', atomIds: ['a0', 'a1'], evidenceIds: ['e0', 'e1'], question: 'Does the caller match?' });
     o.provider = provider(async req => {
       const value = result(req); if (taskInput(req).kind === 'integration') {
-        const body = JSON.parse(value.text); body.items[0].status = 'unresolved'; value.text = JSON.stringify(body);
+        const body = JSON.parse(value.text); body.unresolved = [{ id: body.reviewedIds.shift(), reason: 'Essential context missing' }]; value.text = JSON.stringify(body);
       } return value;
     });
     o.provider.count = vi.fn(async req => 100 + taskInput(req).expectedIds.length * 600);
@@ -97,14 +97,14 @@ describe('harness completion and finite recovery', () => {
   });
   it('late lookup cannot accept findings or schedule a rerun after cancellation', async () => {
     const o = options(); const controller = new AbortController(); let finish!: (value: unknown) => void;
-    o.provider = provider(async req => ({ finishReason: 'STOP', text: JSON.stringify({ kind: 'context_request', taskId: taskInput(req).taskId, requests: [{ kind: 'search', side: 'RIGHT', literal: 'caller' }] }) }));
+    o.provider = provider(async req => ({ finishReason: 'STOP', text: JSON.stringify({ kind: 'context_request', protocolVersion: taskInput(req).protocolVersion, requestId: taskInput(req).requestId, requests: [{ kind: 'search', side: 'RIGHT', literal: 'caller' }] }) }));
     o.lookup.mockImplementation(() => new Promise(resolve => { finish = resolve; controller.abort(); }));
     const run = await runReview({ ...o, signal: controller.signal }); const frozen = JSON.stringify(run);
     finish({ evidence: [], limited: false }); await Promise.resolve();
     expect(run.status).toBe('unavailable'); expect(JSON.stringify(run)).toBe(frozen); expect(o.provider.generateOnce).toHaveBeenCalledTimes(1);
   });
   it('deduplicates accepted concerns and counts invalid candidates as terminal diagnostics', async () => {
-    const o = options(); o.provider = provider(async req => result(req, [finding, finding, { ...finding, evidenceIds: ['fabricated'] }]));
+    const o = options(); o.provider = provider(async req => result(req, [finding, finding, { ...finding, anchor: { ...finding.anchor!, line: 999 } }]));
     const run = await runReview(o); expect(run.status).toBe('complete'); expect(run.findings).toHaveLength(1); expect(run.diagnostics[0]!.disposition).toBe('rejected_invalid_evidence');
   });
 });
@@ -116,7 +116,7 @@ it('creates mandatory integration work when output recovery splits a formerly si
     const input = taskInput(req);
     if (input.kind === 'review' && input.expectedIds.length > 1) return { finishReason: 'MAX_TOKENS', text: '' };
     const response = result(req);
-    if (input.kind === 'integration') { const body = JSON.parse(response.text); body.items[0].status = 'unresolved'; response.text = JSON.stringify(body); }
+    if (input.kind === 'integration') { const body = JSON.parse(response.text); body.unresolved = [{ id: body.reviewedIds.shift(), reason: 'Essential context missing' }]; response.text = JSON.stringify(body); }
     return response;
   });
   o.provider.count = vi.fn(async req => 100 + taskInput(req).expectedIds.length * 100);
@@ -131,7 +131,7 @@ it('plans a thousand changed ranges without a count API call per range', async (
 });
 it('rejects lookup rounds over 8000 counted tokens', async () => {
   const o = options();
-  o.provider = provider(async req => ({ finishReason: 'STOP', text: JSON.stringify({ kind: 'context_request', taskId: taskInput(req).taskId, requests: [{ kind: 'search', side: 'RIGHT', literal: 'caller' }] }) }));
+  o.provider = provider(async req => ({ finishReason: 'STOP', text: JSON.stringify({ kind: 'context_request', protocolVersion: taskInput(req).protocolVersion, requestId: taskInput(req).requestId, requests: [{ kind: 'search', side: 'RIGHT', literal: 'caller' }] }) }));
   o.lookup.mockResolvedValue({ request: {}, evidence: [...o.inventory.evidence.values()], limited: false });
   o.provider.count = vi.fn(async req => req.contents[0]!.parts[0]!.text.startsWith('[') ? 10000 : 100);
   const run = await runReview(o); expect(run.status).toBe('unavailable'); expect(run.usage.attempts).toBe(1); expect(run.diagnostics[0]!.reason).toContain('8,000');
@@ -161,4 +161,22 @@ it('keeps supersession independent of the analysis outcome and rejects late find
   const run = await runReview({ ...o, signal: controller.signal });
   expect(run.status).toBe('superseded'); expect(run.analysisStatus).toBe('unavailable'); expect(run.usage.unknown).toBe(1);
   finish(); await Promise.resolve(); expect(run.findings).toEqual([]); expect(o.lookup).not.toHaveBeenCalled();
+});
+
+it('counts targeted repair feedback and records every attempt before validation', async () => {
+  const o = options(); const counted: string[] = []; let calls = 0;
+  o.provider = provider(async req => {
+    expect(counted).toContain(JSON.stringify(req));
+    if (++calls === 1) return { finishReason: 'STOP', text: '{secret-output', usage: { totalTokenCount: 1000, promptTokenCount: 900, cachedContentTokenCount: 800 } };
+    const payload = JSON.parse(req.contents[0]!.parts[0]!.text);
+    expect(payload.repair).toEqual({ code: 'json' });
+    expect(JSON.stringify(req)).not.toContain('secret-output');
+    return result(req);
+  });
+  o.provider.count = vi.fn(async req => { counted.push(JSON.stringify(req)); return 100; });
+  const run = await runReview(o);
+  expect(run.status).toBe('complete'); expect(run.usage.charged).toBe(1500);
+  expect(run.attempts[0]).toMatchObject({ purpose: 'initial', outcome: 'invalid', cachedContentTokenCount: 800, thinkingBudget: -1, protocolVersion: 'compact-v2' });
+  expect(run.attempts[1]).toMatchObject({ purpose: 'invalid_replacement', outcome: 'result' });
+  expect(run.attempts[0]!.requestHash).not.toBe(run.attempts[1]!.requestHash);
 });

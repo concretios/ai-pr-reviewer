@@ -12,7 +12,8 @@
     "build": "tsx scripts/build.ts",
     "evaluate": "tsx eval/run.ts",
     "replay": "tsx eval/replay.ts",
-    "score": "tsx eval/score-cli.ts"
+    "score": "tsx eval/score-cli.ts",
+    "smoke:gemini": "tsx scripts/gemini-smoke.ts"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",

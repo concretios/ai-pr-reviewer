@@ -2,10 +2,11 @@ import type { Analysis, Inventory, Task, LookupResult, LookupRequest, Attempt } 
 import { obligations } from '../contracts.js';
 import type { Limits } from '../config.js';
 import { Budget, ExecutionEpoch } from './budget.js';
-import { ProviderError, requestFor, type Provider, type Request } from '../providers/provider.js';
+import { ProviderError, requestFor, prepareRequest, type Provider, type Request } from '../providers/provider.js';
 import { fits, plan, splitTask } from '../planning/planner.js';
-import { decode, findingId, validateFindings } from '../review/validate.js';
+import { decodeCompact, ResponseError, findingId, validateFindings } from '../review/validate.js';
 import type { Rules } from '../source/rules.js';
+import { protocolVersion, type RepairFeedback } from '../providers/projection.js';
 import { bounded, delay, hash, message, unique, Superseded } from '../util.js';
 
 type Allowances = { invalid: boolean; transport: boolean; compact: boolean; lookup: boolean };
@@ -29,7 +30,7 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
   const run = emptyAnalysis(); const ledger = new Budget(limits); const epoch = new ExecutionEpoch();
   const cutoff = (options.startedAt ?? Date.now()) + limits.durationMs - limits.reserveMs;
   const allowances = new Map<string, Allowances>(); const seen = new Set<string>();
-  const continuation = new Map<string, { compact: boolean; context: LookupResult[] }>();
+  const continuation = new Map<string, { compact: boolean; context: LookupResult[]; feedback?: RepairFeedback; purpose: NonNullable<Attempt['purpose']> }>();
   const counts = new Map<string, number>();
   let planningTransportUsed = false;
   let queue: Task[] = [];
@@ -68,17 +69,17 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
     for (const id of obligations(task)) state[id] = { status: 'unresolved', reason };
     run.diagnostics.push({ taskId: task.id, reason, disposition: reason.includes('context') ? 'unresolved_missing_context' : undefined });
   };
-  const recoverSplit = async (task: Task, parentCount: number, compact = false, context: LookupResult[] = []): Promise<boolean> => {
+  const recoverSplit = async (task: Task, parentCount: number, compact = false, context: LookupResult[] = [], feedback?: RepairFeedback, purpose: NonNullable<Attempt['purpose']> = 'truncation_recovery'): Promise<boolean> => {
     const children = splitTask(task, inventory);
     if (!children.length) return false;
     const lookupEvidence = context.flatMap(result => result.evidence.map(e => e.id));
     for (const child of children) child.evidenceIds = unique([...child.evidenceIds, ...lookupEvidence]);
     const counts: number[] = [];
-    for (const child of children) counts.push(await count(request(child, compact, context)));
+    for (const child of children) counts.push(await count(prepareRequest(child, inventory, rules, model, limits.output, compact, context, feedback).request));
     if (!open()) return false;
     // No split may reproduce the same counted request or unchanged obligation group.
     if (counts.some(c => c >= parentCount)) return false;
-    for (const child of children) continuation.set(child.id, { compact, context });
+    for (const child of children) continuation.set(child.id, { compact, context, feedback, purpose });
     queue.unshift(...children);
     // A recovery split can turn a previously in-batch relationship into cross-batch work.
     // Preserve those obligations rather than claiming completion from the child atoms alone.
@@ -90,20 +91,20 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
     }
     return true;
   };
-  async function execute(task: Task, compact = false, context: LookupResult[] = []): Promise<void> {
+  async function execute(task: Task, compact = false, context: LookupResult[] = [], purpose: NonNullable<Attempt['purpose']> = 'initial', feedback?: RepairFeedback): Promise<void> {
     if (!open()) return;
     const allowance = allowed(task);
     try {
-      const req = request(task, compact, context);
+      const { request: req, binding } = prepareRequest(task, inventory, rules, model, limits.output, compact, context, feedback);
       const preflight = await count(req);
       if (!open()) return;
       if (!fits(preflight, limits.input)) {
-        if (!await recoverSplit(task, preflight, compact, context)) unresolved(task, context.length ? 'Required context cannot fit within request ceiling' : 'Indivisible input cannot fit');
+        if (!await recoverSplit(task, preflight, compact, context, feedback, purpose)) unresolved(task, context.length ? 'Required context cannot fit within request ceiling' : 'Indivisible input cannot fit');
         return;
       }
       const ticket = ledger.reserve();
       if (!ticket) { unresolved(task, 'Global token or generation-attempt budget exhausted'); return; }
-      const attempt: Attempt = { taskId: task.id, preflight }; run.attempts.push(attempt);
+      const attempt: Attempt = { taskId: task.id, preflight, purpose, outcome: 'pending', protocolVersion, requestHash: hash(req), thinkingBudget: req.generationConfig.thinkingConfig.thinkingBudget }; run.attempts.push(attempt);
       options.onProgress?.(`Reviewing ${task.kind} task, generation ${ledger.snapshot().attempts}/${limits.attempts}`);
       let generated;
       try {
@@ -111,7 +112,7 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
         generated = await bounded(provider.generateOnce(req, signal), signal);
       } catch (error) {
         if (!open()) return;
-        ledger.settle(ticket); attempt.error = message(error);
+        ledger.settle(ticket); attempt.outcome = 'transport_error'; attempt.error = message(error);
         throw error instanceof ProviderError ? error : new ProviderError('Generation timeout; usage unknown', true);
       }
       if (!open()) return;
@@ -120,23 +121,30 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
       attempt.finishReason = generated.finishReason;
       attempt.totalTokenCount = generated.usage?.totalTokenCount;
       attempt.promptTokenCount = generated.usage?.promptTokenCount;
+      attempt.candidatesTokenCount = generated.usage?.candidatesTokenCount;
+      attempt.thoughtsTokenCount = generated.usage?.thoughtsTokenCount;
+      attempt.cachedContentTokenCount = generated.usage?.cachedContentTokenCount;
+      attempt.outcome = generated.finishReason === 'MAX_TOKENS' ? 'truncated' : 'blocked';
       if (generated.finishReason === 'MAX_TOKENS') {
-        if (await recoverSplit(task, preflight, compact, context)) return;
+        if (await recoverSplit(task, preflight, compact, context, feedback)) return;
         if (!open()) return;
         if (obligations(task).length > 1) { unresolved(task, 'Truncated group cannot be split into smaller counted requests'); return; }
-        if (allowance.compact) { allowance.compact = false; await execute(task, true, context); }
+        if (allowance.compact) { allowance.compact = false; await execute(task, true, context, 'truncation_recovery', feedback); }
         else unresolved(task, 'Output truncated after finite recovery');
         return;
       }
       if (generated.finishReason !== 'STOP') { unresolved(task, `Unsuccessful generation: ${generated.finishReason}`); return; }
       let response;
-      try { response = decode(generated.text, task); }
+      try { response = decodeCompact(generated.text, task, binding); }
       catch (error) {
-        if (allowance.invalid) { allowance.invalid = false; await execute(task, compact, context); }
+        attempt.outcome = 'invalid';
+        attempt.error = error instanceof ResponseError ? error.message : 'Invalid response';
+        if (allowance.invalid) { allowance.invalid = false; await execute(task, compact, context, 'invalid_replacement', error instanceof ResponseError ? { code: error.feedback.code } : { code: 'shape' }); }
         else unresolved(task, `Invalid response after replacement: ${message(error)}`);
         return;
       }
       if (response.kind === 'context_request') {
+        attempt.outcome = 'context_request';
         if (!allowance.lookup) { unresolved(task, 'Repeated required context request; lineage lookup round exhausted'); return; }
         allowance.lookup = false;
         const results: LookupResult[] = [];
@@ -155,9 +163,12 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
         if (additionalCount > 8000 || results.some(r => !r.evidence.length)) { unresolved(task, 'Required context missing or exceeds 8,000 additional tokens'); return; }
         for (const item of additions.values()) inventory.evidence.set(item.id, item);
         const expanded = { ...task, evidenceIds: unique([...task.evidenceIds, ...additions.keys()]) };
-        await execute(expanded, compact, results); return;
+        await execute(expanded, compact, results, 'lookup_continuation'); return;
       }
       if (!open()) return;
+      attempt.outcome = 'result';
+      for (const candidate of response.filteredCandidates ?? []) run.diagnostics.push({ taskId: task.id, disposition: 'not_introduced_failure',
+        reason: `Not published (${candidate.classification}): ${candidate.title}` });
       const validated = validateFindings(response.findings, task, inventory);
       for (const finding of validated.accepted) {
         const id = findingId(finding);
@@ -172,7 +183,7 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
         allowance.transport = false;
         try { await delay(Math.max(250, Math.min(30000, error.retryAfterMs)), epoch.signal); }
         catch { return; }
-        if (open()) await execute(task, compact, context);
+        if (open()) await execute(task, compact, context, 'transport_retry', feedback);
       } else unresolved(task, message(error));
     }
   }
@@ -190,7 +201,7 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
       if (!open()) return finalize();
       run.atoms = Object.fromEntries(inventory.atoms.map(a => [a.id, { status: 'pending' as const, reason: 'Not scheduled' }]));
       for (const task of queue) if (task.kind === 'integration') for (const id of task.relationIds) run.relations[id] = { status: 'pending', reason: 'Not scheduled' };
-      const worker = async () => { while (open()) { const task = queue.shift(); if (!task) return; const saved = continuation.get(task.id); await execute(task, saved?.compact, saved?.context); } };
+      const worker = async () => { while (open()) { const task = queue.shift(); if (!task) return; const saved = continuation.get(task.id); await execute(task, saved?.compact, saved?.context, saved?.purpose ?? 'initial', saved?.feedback); } };
       await Promise.all(Array.from({ length: limits.concurrency }, worker));
     }
   } catch (error) { if (open()) run.diagnostics.push({ reason: `Planning failed: ${message(error)}` }); }
@@ -205,6 +216,7 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
     run.status = deriveReviewStatus(run);
     run.analysisStatus = deriveReviewStatus({ ...run, superseded: false }) as Analysis['analysisStatus'];
     run.usage = ledger.snapshot();
+    for (const attempt of run.attempts) if (attempt.outcome === 'pending') attempt.outcome = 'cancelled';
     // Consumers receive a detached final value. Closed continuations cannot mutate it.
     return structuredClone(run);
   }

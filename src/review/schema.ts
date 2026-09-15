@@ -23,6 +23,32 @@ export const TaskResponseSchema = z.discriminatedUnion('kind', [
 export type Finding = z.infer<typeof FindingSchema>;
 export type LookupRequest = z.infer<typeof LookupSchema>;
 export type TaskResponse = z.infer<typeof TaskResponseSchema>;
-// Gemini supports anyOf rather than a root discriminated oneOf.
-export const wireSchema = z.toJSONSchema(TaskResponseSchema, { target: 'draft-7' });
+export const CandidateSchema = z.strictObject({
+  classification: z.enum(['introduced_failure', 'existing_issue', 'improvement', 'preference', 'insufficient_evidence'])
+    .describe('Classify the causal claim. Only introduced_failure is publishable. Cosmetic changes, preferences and descriptions of fixes are not introduced failures.'),
+  ...FindingSchema.shape,
+  changedBehavior: explanation.describe('Specific BEFORE versus AFTER behavior. Describe what the PR changes, not an imagined implementation.'),
+  trigger: explanation.describe('Concrete supported input or situation that makes the NEW code fail. Merely rendering a changed component is not a failing trigger.'),
+  consequence: explanation.describe('Incorrect behavior caused by the NEW code under the trigger, and why it violates a supported requirement. A smaller font, more badges, or an overlay preventing races is not itself a failure. Do not describe what would fail WITHOUT the fix.'),
+});
+export const CompactResponseSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ protocolVersion: z.literal('compact-v2'), requestId: id,
+    kind: z.literal('context_request'), requests: z.array(LookupSchema).min(1).max(4) }),
+  z.strictObject({ protocolVersion: z.literal('compact-v2'), requestId: id, kind: z.literal('result'),
+    reviewedIds: z.array(id), unresolved: z.array(z.strictObject({ id, reason: explanation })),
+    findings: z.array(CandidateSchema).max(100) }),
+]);
+// Nested maxItems constraints make Gemini reject this schema with HTTP 400.
+// They remain mandatory in TaskResponseSchema; omit only the generation hints.
+// Gemini does not enforce JSON Schema const, so encode discriminator literals as enums.
+export const wireSchema = z.toJSONSchema(CompactResponseSchema, {
+  target: 'draft-7',
+  override: ({ jsonSchema }) => {
+    delete jsonSchema.maxItems;
+    if (jsonSchema.const !== undefined) {
+      jsonSchema.enum = [jsonSchema.const];
+      delete jsonSchema.const;
+    }
+  },
+});
 delete wireSchema.$schema;

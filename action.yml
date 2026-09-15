@@ -27,7 +27,7 @@ inputs:
   rules_paths:
     description: Ordered comma-separated base-revision Markdown files or directories, globally scoped
   post_inline_comments:
-    description: Post eligible inline concerns; all concerns also persist in required detail pages
+    description: Post eligible inline concerns; all concerns also persist in the required main comment or linked overflow pages
   comment_severity_threshold:
     description: Minimum inline severity, critical/high/medium/low; engine default low
   bot_name:
