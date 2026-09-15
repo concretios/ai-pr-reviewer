@@ -1,0 +1,18 @@
+{
+  "id": "clean-parameterized-sql",
+  "category": "clean",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export const load = (db:any,id:string) => db.query(\"SELECT * FROM users WHERE id = $1\", [id]);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const load = (db:any,id:string) => { const query = \"SELECT * FROM users WHERE id = $1\"; return db.query(query, [id]); };\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "fc919e9ab3e35fa73b07eb5883ec52fde99cebec60ead0ab8f020f0ecc50d4a3",
+  "baseSha": "a5ae1fb17f70bd8b444d26587bc2f36a305c4432",
+  "headSha": "405eee1862e64c8f6c9c66b07b89ef3b79a32e67",
+  "gold": [],
+  "eligibleAtoms": 2
+}

@@ -1,0 +1,18 @@
+{
+  "id": "clean-escaped-html",
+  "category": "clean",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export const html = (s:string) => s.replace(/&/g,\"&amp;\").replace(/</g,\"&lt;\");\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const html = (s:string) => s.replaceAll(\"&\",\"&amp;\").replaceAll(\"<\",\"&lt;\");\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "d47c344df598ecc586a43fc93f2ab11e9be38d101e4adca51948f3b322c7e8b9",
+  "baseSha": "5060e6b2c1acf0a8a738faeeefa9cb429bf553a3",
+  "headSha": "974c0bba344fbec691c10386a6f221c38872101b",
+  "gold": [],
+  "eligibleAtoms": 2
+}

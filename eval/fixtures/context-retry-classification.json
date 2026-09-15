@@ -1,0 +1,27 @@
+{
+  "id": "context-retry-classification",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const retry=(code:number)=>code===429||code>=500;\n",
+    "caller.ts": "import {retry} from \"./config\";\nexport async function run(call:()=>Promise<number>){while(retry(await call())){} }\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const retry=(code:number)=>code>=400;\n",
+    "caller.ts": "import {retry} from \"./config\";\nexport async function run(call:()=>Promise<number>){while(retry(await call())){} }\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "6db95a204833ecd8ee60ac40ee5e59c217ad8022ae30bc6705022cc14a3fbe6e",
+  "baseSha": "d2f72739fdf5f192fe7e9933f3d43f27ac25d54e",
+  "headSha": "f6971a85df1e154c61979b94895432a1577e2d20",
+  "gold": [
+    {
+      "id": "retry-classification",
+      "severity": "high",
+      "trigger": "Persistent authorization failure",
+      "consequence": "Permanent 401/403 errors become an infinite retry loop."
+    }
+  ],
+  "eligibleAtoms": 2
+}

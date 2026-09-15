@@ -1,0 +1,18 @@
+{
+  "id": "clean-constant-time-not-required",
+  "category": "clean",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "// Values are public product IDs, not credentials.\nexport const same = (a:string,b:string) => a === b;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "// Values are public product IDs, not credentials.\nexport const same = (a:string,b:string) => Object.is(a,b);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "97bc2f1c785a8245d35830b77248605c1a0662ec6e63139985ff7d5f8b78c5cf",
+  "baseSha": "ec0ee1b7b68ceee334c306f5871b638a3bdf58f8",
+  "headSha": "bc785ca0a9e1cb61b2bb96b3447e00afe5c508f4",
+  "gold": [],
+  "eligibleAtoms": 2
+}

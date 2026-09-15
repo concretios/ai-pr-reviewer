@@ -1,0 +1,25 @@
+{
+  "id": "local-empty-first",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export const first=(xs:string[])=>xs.length?xs[0].toUpperCase():\"\";\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const first=(xs:string[])=>xs[0].toUpperCase();\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "0f72718bfe0b77c61748a69738819e2255016abed348e94309ac9b4b62d5f15e",
+  "baseSha": "16ece2289638c2770f06ad6ef0b84516c787c634",
+  "headSha": "266b13c81715a77280f8757ba01096eb73e34f74",
+  "gold": [
+    {
+      "id": "empty-crash",
+      "severity": "medium",
+      "trigger": "Empty input array",
+      "consequence": "TypeError instead of the empty fallback."
+    }
+  ],
+  "eligibleAtoms": 2
+}

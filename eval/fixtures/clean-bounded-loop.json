@@ -1,0 +1,18 @@
+{
+  "id": "clean-bounded-loop",
+  "category": "clean",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export const sum = (xs:number[]) => xs.reduce((a,b)=>a+b,0);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const sum = (xs:number[]) => { let total=0; for (let i=0;i<xs.length;i++) total+=xs[i]; return total; };\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "9beaec42ec544710ded33bcf1ea18ad2eb4dd15c2feeb30a035917998c728a7f",
+  "baseSha": "518fa88050688a3ccc92c6ae34fb634a0a9f91b1",
+  "headSha": "4fc6613e709883746658b5ab9aefdf8c2cd2c188",
+  "gold": [],
+  "eligibleAtoms": 2
+}

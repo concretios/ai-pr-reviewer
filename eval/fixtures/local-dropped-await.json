@@ -1,0 +1,25 @@
+{
+  "id": "local-dropped-await",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export async function save(db:any){await db.commit();return \"saved\";}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export async function save(db:any){db.commit();return \"saved\";}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "1e49fa7b589771d8ad8600c6c53cc11c7f40635d409e3fe9ec67b840eaa63a25",
+  "baseSha": "f998662893c22d8c0737eec3fb0b9ba9cb3bb5cf",
+  "headSha": "d7f55c909ec6f0c274b47c0d0d7bc85d355103b7",
+  "gold": [
+    {
+      "id": "false-success",
+      "severity": "high",
+      "trigger": "Commit rejects or completes after the function returns",
+      "consequence": "Caller observes saved before persistence succeeds."
+    }
+  ],
+  "eligibleAtoms": 2
+}

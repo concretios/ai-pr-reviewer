@@ -1,0 +1,25 @@
+{
+  "id": "local-off-by-one",
+  "category": "local",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "export const sum=(xs:number[])=>{let s=0;for(let i=0;i<xs.length;i++)s+=xs[i];return s;};\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const sum=(xs:number[])=>{let s=0;for(let i=0;i<=xs.length;i++)s+=xs[i];return s;};\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "f6d96b9825d8101a96f2e8a9dd2ff8a853636aa217c9f9699162791cc586169f",
+  "baseSha": "d31aec5bd83a83d275fec378feed9a756fd13eed",
+  "headSha": "0d3bfa25040dc4c968d87fcf4eab1a6ba5a57585",
+  "gold": [
+    {
+      "id": "nan",
+      "severity": "high",
+      "trigger": "Any input array",
+      "consequence": "Reads one past the array, producing NaN."
+    }
+  ],
+  "eligibleAtoms": 2
+}

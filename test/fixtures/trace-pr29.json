@@ -1,0 +1,15 @@
+{
+  "repository": "concretios/trace",
+  "prNumber": 29,
+  "baseRef": "release/integration",
+  "baseSha": "af74f1269483ce00ac8266a32179042b8a363a17",
+  "mergeBaseSha": "af74f1269483ce00ac8266a32179042b8a363a17",
+  "headSha": "fd1e44149a5a52687dc0e31f44485e316a947d39",
+  "historicalCheckoutSha": "aa20a2d2b642629ff9039dfe5a096eb8abfb1a01",
+  "changedFiles": 67,
+  "reportedOriginalPromptCharacters": 1042368,
+  "failedRun": "https://github.com/concretios/trace/actions/runs/34832009514",
+  "baselineRevision": "510a61aad69d2c82319057d8db510dae35a54848",
+  "diagnosticOnly": true,
+  "repositoryId": 1278741287
+}

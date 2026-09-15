@@ -1,0 +1,25 @@
+{
+  "id": "local-sql-interpolation",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export const load=(db:any,id:string)=>db.query(\"SELECT * FROM users WHERE id = $1\",[id]);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const load=(db:any,id:string)=>db.query(`SELECT * FROM users WHERE id = ${id}`);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "6f1abe044bb278f592ddec206dec1534f270b82d6a400444be82279a8fd64caf",
+  "baseSha": "8fbc6734346663a7c21a3695bdc35195a4c115f6",
+  "headSha": "aa0ff73b4d325aa86afd8b5c0b5eb82cf6aa62a8",
+  "gold": [
+    {
+      "id": "sql-injection",
+      "severity": "high",
+      "trigger": "Untrusted id contains SQL syntax",
+      "consequence": "Input changes query semantics."
+    }
+  ],
+  "eligibleAtoms": 2
+}

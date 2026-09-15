@@ -1,0 +1,18 @@
+{
+  "id": "clean-strict-parse",
+  "category": "clean",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "export const port = (s: string) => { if (!/^\\d+$/.test(s)) throw Error(\"invalid\"); return Number(s); };\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const port = (s: string) => { if (!/^\\d+$/.test(s)) throw Error(\"invalid\"); return parseInt(s,10); };\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "549b44ae048a49bb329c44a7135ed5cec99aa3c97d2f7132766c905872dda1ee",
+  "baseSha": "7198b36fd6121cc80f71dfae7fe7c29e10ad3d6f",
+  "headSha": "580a47ec2cc7a17ccc8804eca8fe4b2772428430",
+  "gold": [],
+  "eligibleAtoms": 2
+}

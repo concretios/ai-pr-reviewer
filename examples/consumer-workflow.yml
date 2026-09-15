@@ -1,101 +1,68 @@
-# AI Code Review Workflow
-#
-# Drop this file into any repo at: .github/workflows/ai-review.yml
-#
-# ONE-TIME SETUP:
-#   1. Get a free Gemini API key at https://aistudio.google.com/apikey
-#   2. Add it as a repository secret named GEMINI_API_KEY
-#      (Settings > Secrets and variables > Actions > New repository secret)
-#   3. That's it. Open a PR to see it work.
-#
-# OPTIONAL: Add coding standards for better reviews.
-#   Create any of these files in your repo and the action auto-discovers them:
-#   - review-rules.md       (simplest: one file with your rules)
-#   - CLAUDE.md             (if you use Claude Code)
-#   - AGENTS.md             (general agent rules)
-#   - GEMINI.md             (Gemini-specific rules)
-#   - vibe-coding-rules/    (directory of .md rule files)
-#   - .cursor/rules/        (if you use Cursor)
-#
-# TRIGGER: Runs automatically on every PR open/update.
-# MANUAL TRIGGER: Comment "@dr-concretio review" on any PR
-#   (only OWNER, MEMBER, or COLLABORATOR can trigger this way)
-
-name: Dr. Concret.io Review
-
+name: AI Review
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-  issue_comment:
-    types: [created]
-
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number
+        required: true
+        type: string
+      review_mode:
+        description: Review budget
+        type: choice
+        options: [auto, extended]
+        default: extended
+      publish:
+        description: Publish findings
+        type: boolean
+        default: false
+permissions: {}
 jobs:
-  diagnose:
-    # Run on all PR events, OR when an authorized user comments "@dr-concretio review"
-    # The author_association check prevents external contributors from triggering
-    # expensive API calls and protects against prompt injection via PR content.
-    if: >
-      (github.event_name == 'pull_request') ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       contains(github.event.comment.body, '@dr-concretio review') &&
-       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-       github.actor != 'github-actions[bot]')
-
+  review:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
     runs-on: ubuntu-latest
-
-    # Minimal permissions: read code, write PR comments. Nothing else.
+    timeout-minutes: 30
     permissions:
       contents: read
       pull-requests: write
-
+    concurrency:
+      group: >-
+        ai-review-${{ github.repository_id }}-${{
+          github.event.pull_request.number || inputs.pr_number
+        }}-${{
+          github.event_name == 'workflow_dispatch' && !inputs.publish &&
+          format('pilot-{0}', github.run_id) || 'publish'
+        }}
+      cancel-in-progress: false
+      queue: max
     steps:
-      # Full git history needed for accurate diff generation
-      - uses: actions/checkout@v4
+      # v2 is illustrative until release. Replace with the audited v2 release SHA.
+      - uses: concretios/ai-pr-reviewer@v2
+        id: review
         with:
-          fetch-depth: 0
-
-      # For issue_comment triggers, we need to checkout the PR branch
-      # so the scripts can read the actual changed files
-      - name: Checkout PR branch (comment trigger only)
-        if: github.event_name == 'issue_comment'
-        run: gh pr checkout "${{ github.event.issue.number }}"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - uses: concretios/ai-pr-reviewer@v1
-        with:
+          github_token: ${{ github.token }}
           gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
-
-          # Where to find your coding standards.
-          # Comma-separated files or directories. Auto-discovered if they exist.
-          # Remove this line to use the defaults (CLAUDE.md, AGENTS.md, vibe-coding-rules/, etc.)
-          rules_paths: "review-rules.md,CLAUDE.md,AGENTS.md,vibe-coding-rules/"
-
-          # How much context Gemini sees. Trade-off: cost vs review quality.
-          #   diff-only      ~$0.002/review  Fast, cheap, good for small PRs
-          #   changed-files  ~$0.005-0.015   Recommended: full file content (default)
-          #   related        ~$0.015-0.035   Best quality: includes imported files
-          context_depth: "changed-files"
-
-          # Gemini model. gemini-2.5-flash is fast and cheap (default).
-          # Use gemini-2.5-pro for deeper analysis on critical PRs.
-          # model: "gemini-2.5-flash"
-
-          # Post inline comments on specific lines (default: true).
-          # Set to false if you prefer a single summary comment only.
-          # post_inline_comments: "true"
-
-          # Minimum severity for inline comments: critical | high | medium | low
-          # Default "low" posts inline for everything. Use "high" to reduce noise.
-          # comment_severity_threshold: "low"
-
-          # WARNING: Enables AI APPROVE / REQUEST_CHANGES (blocks merging).
-          # Leave false until you've validated review quality on your repo.
-          # submit_review_verdict: "false"
-
-          # Skip review if PR touches more than this many files (default: 20).
-          # max_files: "20"
-
-          # Trigger name for @mention. Change if you run multiple AI reviewers.
-          bot_name: "dr-concretio"
+          pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
+          review_mode: ${{ inputs.review_mode || 'auto' }}
+          publish: ${{ github.event_name != 'workflow_dispatch' || inputs.publish }}
+      - uses: actions/upload-artifact@v7
+        if: always() && steps.review.outputs.report_directory != ''
+        with:
+          name: ai-review-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.review.outputs.report_directory }}
+          retention-days: 7
+  skipped-event:
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+       github.actor == 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - run: echo 'AI review skipped. Fork and Dependabot PRs are excluded; no model calls made.' >> "$GITHUB_STEP_SUMMARY"

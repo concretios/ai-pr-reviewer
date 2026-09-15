@@ -1,0 +1,25 @@
+{
+  "id": "local-delete-guard",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export function remove(db:any,id:string){if(!id)throw Error(\"id required\");return db.delete({where:id?{id}:{}});}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export function remove(db:any,id:string){return db.delete({where:id?{id}:{}});}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "0a36923870548e1619c98f1752a5d15f6fbd1f513bdc204aa3a94630e11b2e21",
+  "baseSha": "4bb9384378155767db375434b87eb32217d10f28",
+  "headSha": "d65d060087688c568ecedc555bf94c318f361cc3",
+  "gold": [
+    {
+      "id": "bulk-delete",
+      "severity": "high",
+      "trigger": "Empty id",
+      "consequence": "Unfiltered deletion replaces a rejected request."
+    }
+  ],
+  "eligibleAtoms": 2
+}

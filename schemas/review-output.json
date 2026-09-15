@@ -1,89 +1,255 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AICodeReviewOutput",
-  "description": "Structured output schema for AI code review. Used with Gemini's responseJsonSchema to guarantee parseable responses.",
-  "type": "object",
-  "properties": {
-    "summary": {
-      "type": "string",
-      "description": "2-3 sentence overview of the PR and review findings"
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "context_request"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "requests": {
+          "minItems": 1,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "range"
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "side": {
+                    "type": "string",
+                    "enum": [
+                      "LEFT",
+                      "RIGHT"
+                    ]
+                  },
+                  "start": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "end": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "kind",
+                  "path",
+                  "side",
+                  "start",
+                  "end"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "search"
+                  },
+                  "literal": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "side": {
+                    "type": "string",
+                    "enum": [
+                      "LEFT",
+                      "RIGHT"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind",
+                  "literal",
+                  "side"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "taskId",
+        "requests"
+      ],
+      "additionalProperties": false
     },
-    "verdict": {
-      "type": "string",
-      "enum": ["approve", "request_changes", "comment"],
-      "description": "Overall review verdict. Use request_changes only for critical findings or high findings that will realistically trigger on normal production traffic. Use comment for edge-case highs or medium findings. Use approve when the PR is net-positive with no critical/realistic-high issues."
-    },
-    "findings": {
-      "type": "array",
-      "description": "List of specific issues found in the code. Use line: 0 for file-level findings that do not map to a specific line.",
-      "items": {
-        "type": "object",
-        "properties": {
-          "file": {
-            "type": "string",
-            "description": "File path relative to repo root"
-          },
-          "line": {
-            "type": "integer",
-            "description": "Line number where the issue starts. Use 0 for file-level findings."
-          },
-          "end_line": {
-            "type": "integer",
-            "description": "Line number where the issue ends (for multi-line findings)"
-          },
-          "severity": {
-            "type": "string",
-            "enum": ["critical", "high", "medium", "low"]
-          },
-          "category": {
-            "type": "string",
-            "enum": ["correctness", "security", "performance", "style", "architecture", "quality"]
-          },
-          "title": {
-            "type": "string",
-            "description": "Short title for the finding (under 80 characters)"
-          },
-          "comment": {
-            "type": "string",
-            "description": "Explanation of the issue and why it matters. Keep under 200 words."
-          },
-          "suggestion": {
-            "type": "string",
-            "description": "Replacement code only — no prose or explanation. This becomes a GitHub one-click suggestion block. Write only the corrected lines as they should appear in the file. Omit entirely if no clean single-block replacement applies."
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "result"
+        },
+        "taskId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "reviewed",
+                  "unresolved"
+                ]
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "reason"
+            ],
+            "additionalProperties": false
           }
         },
-        "required": ["file", "line", "severity", "category", "title", "comment"]
-      }
-    },
-    "highlights": {
-      "type": "array",
-      "description": "Things done well in this PR worth acknowledging. Omit or leave empty if nothing stands out.",
-      "items": {
-        "type": "string"
-      }
-    },
-    "missing_guardrails": {
-      "type": "array",
-      "description": "Coding standards files that should exist but do not. Only populate when no rules files are found.",
-      "items": {
-        "type": "object",
-        "properties": {
-          "file": {
-            "type": "string",
-            "description": "Suggested filename (e.g., review-rules.md)"
-          },
-          "reason": {
-            "type": "string",
-            "description": "Why this file should exist"
-          },
-          "suggested_content": {
-            "type": "string",
-            "description": "Starter content for the file, tailored to the detected tech stack"
+        "findings": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "critical",
+                  "high",
+                  "medium",
+                  "low"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "changedBehavior": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "trigger": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "consequence": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "introducedByAtomIds": {
+                "minItems": 1,
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "evidenceIds": {
+                "minItems": 1,
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "anchor": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      "side": {
+                        "type": "string",
+                        "enum": [
+                          "LEFT",
+                          "RIGHT"
+                        ]
+                      },
+                      "line": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "side",
+                      "line"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "severity",
+              "title",
+              "changedBehavior",
+              "trigger",
+              "consequence",
+              "introducedByAtomIds",
+              "evidenceIds",
+              "anchor"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": ["file", "reason"]
-      }
+        }
+      },
+      "required": [
+        "kind",
+        "taskId",
+        "items",
+        "findings"
+      ],
+      "additionalProperties": false
     }
-  },
-  "required": ["summary", "verdict", "findings"]
+  ]
 }

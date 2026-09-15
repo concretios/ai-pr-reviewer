@@ -1,0 +1,27 @@
+{
+  "id": "context-milliseconds",
+  "category": "context",
+  "split": "development",
+  "baseFiles": {
+    "config.ts": "export const ttl=()=>60_000;\n",
+    "caller.ts": "import {ttl} from \"./config\";\nexport const expires=(now:number)=>now+ttl(); // epoch milliseconds\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const ttl=()=>60;\n",
+    "caller.ts": "import {ttl} from \"./config\";\nexport const expires=(now:number)=>now+ttl(); // epoch milliseconds\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "ad4ce021090a8640e5a016b2713e36f5fa176e38def896d4764d6d90b6439ee3",
+  "baseSha": "43a868fe25ab8ed9596bb64fd85decaa5b41e169",
+  "headSha": "cd0787bf7c47348db8a31690a3154b648a5b3568",
+  "gold": [
+    {
+      "id": "milliseconds",
+      "severity": "high",
+      "trigger": "Token expiry computation",
+      "consequence": "Token lifetime becomes 60 milliseconds instead of 60 seconds."
+    }
+  ],
+  "eligibleAtoms": 2
+}

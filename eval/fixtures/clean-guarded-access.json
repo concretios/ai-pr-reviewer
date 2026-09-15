@@ -1,0 +1,18 @@
+{
+  "id": "clean-guarded-access",
+  "category": "clean",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "export const first = (xs: string[]) => xs.length ? xs[0].toUpperCase() : \"\";\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const first = (xs: string[]) => { if (!xs.length) return \"\"; return xs[0].toUpperCase(); };\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "01d6469a37bb54f460ae846459edef326dfb48908a0fa4e4e9158ac44f979ebc",
+  "baseSha": "cecc2238c016d9924a514cdf1671eeb345ed29ca",
+  "headSha": "4de827f37a1a7ff1fa3500885c5d4fc8617fc4df",
+  "gold": [],
+  "eligibleAtoms": 2
+}

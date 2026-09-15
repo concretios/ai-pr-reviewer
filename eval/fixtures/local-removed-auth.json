@@ -1,0 +1,25 @@
+{
+  "id": "local-removed-auth",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export function read(user:any,record:any){if(user.id!==record.owner)throw Error(\"forbidden\");return record.secret;}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export function read(user:any,record:any){return record.secret;}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "d490f9e971be1d1ea2ece940cabbda2c6964157ef25f267cec25eede6f212d42",
+  "baseSha": "755122715e67c9e87acc118268c0e09f31840ada",
+  "headSha": "32f59e6cb67757e143f60adfe56c4c1de75576ed",
+  "gold": [
+    {
+      "id": "cross-user-read",
+      "severity": "high",
+      "trigger": "Caller supplies a record owned by another user",
+      "consequence": "Private record secret is disclosed."
+    }
+  ],
+  "eligibleAtoms": 2
+}

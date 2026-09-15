@@ -1,0 +1,27 @@
+{
+  "id": "context-inclusive-range",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const contains=(x:number,end:number)=>x<end;\n",
+    "caller.ts": "import {contains} from \"./config\";\nexport function get(xs:string[],i:number){if(i<0||!contains(i,xs.length))throw Error(\"range\");return xs[i].trim();}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const contains=(x:number,end:number)=>x<=end;\n",
+    "caller.ts": "import {contains} from \"./config\";\nexport function get(xs:string[],i:number){if(i<0||!contains(i,xs.length))throw Error(\"range\");return xs[i].trim();}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "e0e7bb6d96cb173ef11c01f13816395b40ef513d208d59350486e71f886d5e7c",
+  "baseSha": "d1d62715819b3cdf5a4712af539296a718111eee",
+  "headSha": "06af9cd0dc36c212a076c12bffa251dc5ff0d37c",
+  "gold": [
+    {
+      "id": "inclusive-range",
+      "severity": "medium",
+      "trigger": "i equals array length",
+      "consequence": "Index equal to length is admitted and crashes."
+    }
+  ],
+  "eligibleAtoms": 2
+}

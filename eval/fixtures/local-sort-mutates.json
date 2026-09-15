@@ -1,0 +1,25 @@
+{
+  "id": "local-sort-mutates",
+  "category": "local",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "// Caller retains xs in its original order.\nexport const sorted=(xs:number[])=>[...xs].sort((a,b)=>a-b);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "// Caller retains xs in its original order.\nexport const sorted=(xs:number[])=>xs.sort((a,b)=>a-b);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "6150b295a7ac87d437a49c43218529c4b1aedf29673ac23e1da0d2d0f9012fda",
+  "baseSha": "71197307381643e1a905d29e38bfa69822090b5c",
+  "headSha": "904e0acb5d9cbf9f60fdf82f9ee64eda79d907a3",
+  "gold": [
+    {
+      "id": "mutation",
+      "severity": "medium",
+      "trigger": "A caller retains its input array",
+      "consequence": "Sorting mutates the input order."
+    }
+  ],
+  "eligibleAtoms": 2
+}

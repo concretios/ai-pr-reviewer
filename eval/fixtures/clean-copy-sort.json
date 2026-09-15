@@ -1,0 +1,18 @@
+{
+  "id": "clean-copy-sort",
+  "category": "clean",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "export const sorted = (xs: number[]) => xs.slice().sort((a,b) => a-b);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const sorted = (xs: number[]) => [...xs].sort((a,b) => a-b);\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "495f98789143cbdaba75d3181ca079a337bb2df9dfe27fc99a3a92aaf68d23dd",
+  "baseSha": "c2f34febbb92586d099e76360df3f9954b2b1a1e",
+  "headSha": "17f7c3437c7ccd723ea8a33ba07f307937e2c4bb",
+  "gold": [],
+  "eligibleAtoms": 2
+}

@@ -1,0 +1,25 @@
+{
+  "id": "local-zero-default",
+  "category": "local",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "// A zero quota disables access. Undefined uses the default.\nexport const quota = (n?:number) => n ?? 10;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "// A zero quota disables access. Undefined uses the default.\nexport const quota = (n?:number) => n || 10;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "e8d2fbf9e7313c06165c3bbab904565b01c1325fc65fc7737c5ff7b186746fb2",
+  "baseSha": "5ebcb0bc49ada3cca78559ffd7ff72f069794ef6",
+  "headSha": "e72c7a811105a491e72a64c4f6c7030c69ca17f5",
+  "gold": [
+    {
+      "id": "zero-access",
+      "severity": "high",
+      "trigger": "quota(0)",
+      "consequence": "Zero quota becomes 10 and permits disabled access."
+    }
+  ],
+  "eligibleAtoms": 2
+}

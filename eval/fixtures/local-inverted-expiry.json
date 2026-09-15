@@ -1,0 +1,25 @@
+{
+  "id": "local-inverted-expiry",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "// now and expires are epoch milliseconds.\nexport const valid=(now:number,expires:number)=>now<expires;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "// now and expires are epoch milliseconds.\nexport const valid=(now:number,expires:number)=>now>expires;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "2754f5f59b58522fc325de1914479bde20692a8d13921f3f1227881554df93eb",
+  "baseSha": "ea6516703f524adfda4038a984b62d56e89efa3d",
+  "headSha": "d31395653fdd8bc39f39a58e73f19078c9ba175e",
+  "gold": [
+    {
+      "id": "expired-token",
+      "severity": "high",
+      "trigger": "Expired credential",
+      "consequence": "Expired credentials are accepted and live ones rejected."
+    }
+  ],
+  "eligibleAtoms": 2
+}

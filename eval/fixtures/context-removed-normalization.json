@@ -1,0 +1,27 @@
+{
+  "id": "context-removed-normalization",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const normalize=(s:string)=>s.toLowerCase();\n",
+    "caller.ts": "import {normalize} from \"./config\";\nconst denied=new Set([\"root\"]);\nexport const allowed=(name:string)=>!denied.has(normalize(name)); // usernames are case-insensitive\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const normalize=(s:string)=>s;\n",
+    "caller.ts": "import {normalize} from \"./config\";\nconst denied=new Set([\"root\"]);\nexport const allowed=(name:string)=>!denied.has(normalize(name)); // usernames are case-insensitive\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "4c3b541fbca03856b305c8606b901467b684a30f46f97ee2c15ac3dfd12be006",
+  "baseSha": "e55def4423a8f701847a00917384870bbadcdfa5",
+  "headSha": "4b346e315c5188987dc2279b52c60e7ea0f3b796",
+  "gold": [
+    {
+      "id": "removed-normalization",
+      "severity": "medium",
+      "trigger": "Name ROOT",
+      "consequence": "Case variants bypass the reserved-name check."
+    }
+  ],
+  "eligibleAtoms": 2
+}

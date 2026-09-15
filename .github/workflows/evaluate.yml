@@ -1,0 +1,35 @@
+name: Evaluate reviewer
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Evaluation suite
+        type: choice
+        options: [smoke, release]
+        default: smoke
+permissions:
+  contents: read
+jobs:
+  evaluate:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run evaluate -- --suite "$EVAL_SUITE" --publish=false
+        env:
+          EVAL_SUITE: ${{ inputs.suite }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: reviewer-evaluation
+          path: eval-results/
+          retention-days: 7

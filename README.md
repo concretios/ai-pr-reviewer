@@ -1,137 +1,122 @@
-# Dr. Concret.io: AI PR Reviewer
+# AI PR Reviewer v2
 
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![CI](https://github.com/concretios/ai-pr-reviewer/actions/workflows/ci.yml/badge.svg)](https://github.com/concretios/ai-pr-reviewer/actions/workflows/ci.yml)
+Advisory pull-request reviews using Gemini 2.5 Flash. The action captures committed source, batches work within explicit budgets, and persists every accepted concern in PR detail comments.
 
-Lightweight GitHub Action for automated AI-powered code review on pull requests using Google Gemini Flash.
+**v2 is under development.** The example `@v2` reference is illustrative until release. Use an audited commit SHA for a pilot. Model quality and release acceptance still require the manual evaluation described below.
 
-Built and maintained by [Concret.io](https://concret.io).
+## Install
 
-## Quick Start
-
-1. Get a free Gemini API key at https://aistudio.google.com/apikey
-2. Add it as a repository secret named `GEMINI_API_KEY`
-3. Copy the workflow below into `.github/workflows/ai-review.yml`
-4. Open a PR
+Add a `GEMINI_API_KEY` repository secret, then copy [the consumer workflow](examples/consumer-workflow.yml). No checkout or package installation is needed in the consumer job.
 
 ```yaml
-name: Dr. Concret.io Review
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-jobs:
-  diagnose:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: concretios/ai-pr-reviewer@v1
-        with:
-          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+- uses: concretios/ai-pr-reviewer@v2 # Replace with an audited release SHA.
+  id: review
+  with:
+    github_token: ${{ github.token }}
+    gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
-See `examples/consumer-workflow.yml` for the full example with @mention trigger and all inputs documented.
+The job requires `contents: read` and `pull-requests: write`. The example includes authorization gates, publication concurrency, manual dry runs, and seven-day artifact retention. An [optional comment workflow](examples/comment-workflow.yml) supports exact `@dr-concretio review` and `@dr-concretio extend` commands.
 
-## How It Works
+Fork and Dependabot PRs are excluded. Manual dispatch must use the default branch and a current repository maintainer. Rerun actors are also checked. Extended mode starts a fresh invocation with a larger budget.
 
-```
-PR opened/updated
-  -> gather-context.sh  (diff, changed files, related files, tech stack, project tree)
-  -> review.sh          (load rules, assemble prompt via jq, call Gemini API)
-  -> post-review.sh     (summary comment + inline review comments)
-```
+## What the result means
 
-The action auto-discovers coding standards from common locations in the repo. No extra config needed if the client already has `CLAUDE.md`, `AGENTS.md`, or `vibe-coding-rules/`.
+- `complete`: All mandatory work in the declared scope finished. This is not a guarantee that every bug was found.
+- `partial`: Some work finished, with unreviewed or unresolved obligations explicitly listed.
+- `unavailable`: No mandatory work could be completed. The action fails and retains its report.
+- `skipped`: No eligible work or an excluded event.
+- `superseded`: The PR identity changed. Subsequent live writes stop.
+
+Findings are model-reported concerns, not verified defects. Only advisory `COMMENT` reviews are posted. Finding severity and count never determine the exit code.
+
+Every accepted concern, including low-severity and unanchored concerns, is retained in required detail pages. Inline posting is best effort. Missing or uncertain required delivery fails the action independently of analysis completion.
 
 ## Inputs
 
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `gemini_api_key` | Yes | - | Gemini API key (free from aistudio.google.com) |
-| `github_token` | No | `github.token` | Override with PAT for cross-repo access |
-| `rules_paths` | No | `review-rules.md,CLAUDE.md,AGENTS.md,GEMINI.md,vibe-coding-rules/,.cursor/rules/` | Comma-separated paths to coding standards files or directories |
-| `context_depth` | No | `changed-files` | `diff-only`, `changed-files`, or `related` |
-| `model` | No | `gemini-2.5-flash` | Gemini model to use |
-| `post_inline_comments` | No | `true` | Post inline comments on specific diff lines |
-| `comment_severity_threshold` | No | `low` | Minimum severity for inline comments: `critical`, `high`, `medium`, `low` |
-| `submit_review_verdict` | No | `false` | Map AI verdict to GitHub APPROVE/REQUEST_CHANGES (blocks merging) |
-| `max_files` | No | `20` | Skip review if PR touches more files than this |
-| `max_diff_size` | No | `10000` | Max diff lines before "large PR" guidance |
-| `bot_name` | No | `dr-concretio` | Name for @mention trigger and comment identification |
+Settings resolve from engine defaults, then `.ai-review.yml` at the captured base, then explicitly supplied action inputs.
 
-## Cost
+| Input | Default | Meaning |
+| --- | --- | --- |
+| `gemini_api_key` | Required for model work | Gemini API credential |
+| `github_token` | `github.token` | GitHub repository and PR access |
+| `pr_number` | Event PR | Required for manual dispatch |
+| `config_path` | `.ai-review.yml` | Base-revision configuration path |
+| `review_mode` | `auto` | `auto` or maintainer-authorized `extended` |
+| `publish` | `true` | Set `false` for a diagnostic run |
+| `model` | `gemini-2.5-flash` | Gemini model identifier |
+| `post_inline_comments` | `true` | Publish eligible inline concerns |
+| `comment_severity_threshold` | `low` | Minimum inline severity |
+| `bot_name` | `dr-concretio` | Stable reviewer identity across triggers |
+| `rules_paths` | Four root Markdown files | Ordered comma-separated Markdown files/directories |
+| `submit_review_verdict` | Unset | `false` accepted for migration; `true` rejected |
 
-| Context Level | Typical Tokens | Cost per Review |
-|---------------|----------------|-----------------|
-| `diff-only` | 2-5K | ~$0.002 |
-| `changed-files` | 10-30K | ~$0.005-0.015 |
-| `related` | 30-80K | ~$0.015-0.035 |
+`max_files`, `max_diff_size`, and `context_depth` produce explicit migration errors. See [migration guidance](docs/migration-v2.md).
 
-Based on Gemini 2.5 Flash Standard tier: $0.30/M input, $2.50/M output (incl. thinking tokens).
-
-## Coding Standards Auto-Discovery
-
-The action scans for these files automatically. No configuration needed if they exist:
-
-| File/Directory | Used by |
-|----------------|---------|
-| `review-rules.md` | General review rules |
-| `CLAUDE.md` | Claude Code users |
-| `AGENTS.md` | Agent configuration |
-| `GEMINI.md` | Gemini-specific rules |
-| `vibe-coding-rules/` | Directory of `.md` rule files |
-| `.cursor/rules/` | Cursor users |
-
-If none are found, the AI suggests creating them with starter content for the detected tech stack.
-
-## @Mention Trigger
-
-Add the `issue_comment` trigger to allow on-demand reviews:
+Configuration example:
 
 ```yaml
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-  issue_comment:
-    types: [created]
+model: gemini-2.5-flash
+post_inline_comments: true
+comment_severity_threshold: medium
+bot_name: dr-concretio
+rules_paths:
+  - review-rules.md
+  - AGENTS.md
+  - standards/
+exclude_paths:
+  - fixtures/vendor/
 ```
 
-Then comment `@dr-concretio review` on any PR. Only OWNER, MEMBER, and COLLABORATOR can trigger this.
+Exclusions match an exact path or directory prefix. There are no implicit generated-code or lockfile exclusions. Rule Markdown applies globally in supplied order. Automatic discovery covers `review-rules.md`, `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`. Unsupported configured formats such as MDC are reported. PR edits to rules or configuration are review material and do not govern their own review.
 
-## Running Tests Locally
+Repository configuration cannot set publication or authorize extended mode. If a comment workflow uses a custom bot name, update its exact command conditions and the `bot_name` input together.
 
-```bash
-bash test/mock-review.sh
+## Outputs and reports
+
+`review_status`, `publication_status`, `reviewed_sha`, and `report_directory` are finalized before ordinary failure exits. Upload `report_directory` with `if: always()` as in the consumer workflow.
+
+Reports include the source manifest, findings, coverage obligations, omissions, provider usage, recovery diagnostics, and every required/best-effort delivery operation. `report.md` is readable; `report.json`, `manifest.json`, `inventory.json`, and `evidence.json` support diagnosis. Early admission failures may not have a source manifest or inventory. Reports can contain private source and should use repository-appropriate artifact access.
+
+## Budgets
+
+| Limit | Automatic | Extended |
+| --- | ---: | ---: |
+| Request input ceiling, including 5% headroom | 32,000 | 32,000 |
+| Output limit, including thinking | 32,768 | 32,768 |
+| Generation attempts, including recovery | 12 | 24 |
+| Admission-token budget | 500,000 | 1,000,000 |
+| Action deadline | 10 minutes | 20 minutes |
+| Concurrent generations | 2 | 2 |
+| Finalization reserve | 60 seconds | 60 seconds |
+
+Each original task lineage gets one bounded lookup round, one malformed-response replacement, one transport retry, and one compact singleton-truncation retry. Splitting cannot replenish these allowances. Unknown usage keeps the full reservation. The ledger controls admission; it does not guarantee an invoice ceiling or server cancellation.
+
+## Development and evaluation
+
+Use Node 24 or newer.
+
+```sh
+npm ci
+npm run check
+npm test
+npm run build
+npm run replay
+npm run evaluate -- --suite smoke --publish=false --dry-run
 ```
 
-Runs the full pipeline with mocked `gh` and `curl`. No API keys needed.
+`replay` reads the pinned historical Trace PR #29 comparison. It never calls a model or publishes. It uses `GITHUB_TOKEN`, an authenticated `gh` installation, or public Git access.
 
-## File Structure
+A deliberate paid run uses the manual [evaluation workflow](.github/workflows/evaluate.yml) or omits `--dry-run` locally with `GEMINI_API_KEY` set. The smoke suite uses ten development cases. The release suite uses twenty held-out cases with three paired trials each. Human assessment is required before drawing model-quality conclusions. See [evaluation protocol](eval/README.md) and [architecture](docs/architecture.md).
 
-```
-ai-pr-reviewer/
-├── action.yml                     # Composite action entry point
-├── scripts/
-│   ├── lib.sh                     # Shared utilities (logging, retry, validation)
-│   ├── gather-context.sh          # PR metadata, diff, changed files, tech stack
-│   ├── review.sh                  # Rules loading, prompt assembly, Gemini API call
-│   └── post-review.sh             # Summary comment + inline review comments
-├── prompts/
-│   └── code-review.md             # Prompt template (the "brain" of the system)
-├── schemas/
-│   └── review-output.json         # JSON schema for Gemini structured output
-├── examples/
-│   └── consumer-workflow.yml      # Full example workflow for consumer repos
-├── test/
-│   └── mock-review.sh             # Local integration test with mocked commands
-└── .github/workflows/
-    └── ci.yml                     # ShellCheck, YAML lint, JSON validation, integration test
-```
+## Compatibility and limitations
+
+The action runs on Node 24. Self-hosted runners must support the Node 24 JavaScript action runtime and have Git installed. Verify runner and release compatibility before installation. The workflow examples use the current `v7` action families; pin their reviewed SHAs for production.
+
+GitHub workflow creation time is not guaranteed to be readable with the minimum permissions. When it cannot be read, an attempt does not overwrite an existing completed/latest record whose relative age is unknown. Its own result appears in a separate section. See [publication ordering](docs/architecture.md#publication-ordering).
+
+No PR code, tests, hooks, text-conversion filters, submodules, or arbitrary commands are executed. Context selection is bounded and one-hop; unsupported source and missing evidence remain visible. v1 is frozen under `eval/baseline-v1` for comparison and existing v1 releases remain usable.
 
 ## License
 
-Copyright 2026 [Concret.io](https://concret.io). Licensed under the [Apache License, Version 2.0](LICENSE).
+Copyright 2026 [Concret.io](https://concret.io). [Apache License 2.0](LICENSE).

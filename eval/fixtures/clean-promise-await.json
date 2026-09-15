@@ -1,0 +1,18 @@
+{
+  "id": "clean-promise-await",
+  "category": "clean",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export async function save(store: {put(): Promise<void>}) { return store.put(); }\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export async function save(store: {put(): Promise<void>}) { await store.put(); }\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "87a97c5f907a54c6127b935cd7adb52695322e06989ca544ac12f955baf5e618",
+  "baseSha": "2b588cfc2617661ff6305189ad4b2ffd1eb49428",
+  "headSha": "464bbe67aea5bb04cc9e077cbca8d023e236b4de",
+  "gold": [],
+  "eligibleAtoms": 2
+}

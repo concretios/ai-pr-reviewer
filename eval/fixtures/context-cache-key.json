@@ -1,0 +1,27 @@
+{
+  "id": "context-cache-key",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const key=(tenant:string,id:string)=>`${tenant}:${id}`;\n",
+    "caller.ts": "import {key} from \"./config\";\nconst cache=new Map<string,string>();\nexport function read(t:string,id:string,load:()=>string){const k=key(t,id);if(!cache.has(k))cache.set(k,load());return cache.get(k);}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const key=(tenant:string,id:string)=>id;\n",
+    "caller.ts": "import {key} from \"./config\";\nconst cache=new Map<string,string>();\nexport function read(t:string,id:string,load:()=>string){const k=key(t,id);if(!cache.has(k))cache.set(k,load());return cache.get(k);}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "587b66598a75f57f63717e48fd943b33f240cc183904c0f89ce7b8269fe302fb",
+  "baseSha": "6bc9b8fe115256fdec3bbe7137377fea7ce5a87a",
+  "headSha": "35d33acfaa7df9a20aa9ed33b2a56f3912217ed4",
+  "gold": [
+    {
+      "id": "cache-key",
+      "severity": "high",
+      "trigger": "Same id in two tenants",
+      "consequence": "Two tenants share a cached private value."
+    }
+  ],
+  "eligibleAtoms": 2
+}

@@ -1,0 +1,27 @@
+{
+  "id": "context-null-contract",
+  "category": "context",
+  "split": "development",
+  "baseFiles": {
+    "config.ts": "export const lookup=(xs:string[])=>xs[0]??null;\n",
+    "caller.ts": "import {lookup} from \"./config\";\nexport function read(xs:string[]){const x=lookup(xs);return x===null?\"empty\":x.toUpperCase();}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const lookup=(xs:string[])=>xs[0];\n",
+    "caller.ts": "import {lookup} from \"./config\";\nexport function read(xs:string[]){const x=lookup(xs);return x===null?\"empty\":x.toUpperCase();}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "79fd63c2a0de5d5b981ec1dc73002cfc902ca022de0197b72ed6e5389bcdab03",
+  "baseSha": "30f5858e1f7f165aa15e1e1fe5a4a760b33ce0d9",
+  "headSha": "701d4214329d3e2980c9e2bb21a09fbc69ba2dae",
+  "gold": [
+    {
+      "id": "null-contract",
+      "severity": "high",
+      "trigger": "Empty array",
+      "consequence": "Empty input reaches toUpperCase on undefined."
+    }
+  ],
+  "eligibleAtoms": 2
+}

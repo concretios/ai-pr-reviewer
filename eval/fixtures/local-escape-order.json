@@ -1,0 +1,25 @@
+{
+  "id": "local-escape-order",
+  "category": "local",
+  "split": "held-out",
+  "baseFiles": {
+    "service.ts": "export const escape=(s:string)=>s.replaceAll(\"&\",\"&amp;\").replaceAll(\"<\",\"&lt;\");\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const escape=(s:string)=>s.replaceAll(\"<\",\"&lt;\").replaceAll(\"&\",\"&amp;\");\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "3811ab100b331917ff0c626f6936dd86d7ef1bd692af5a4d31c8e5434ceeae8e",
+  "baseSha": "48444854a2a5caed94b3e6c891f1330af2eddbe7",
+  "headSha": "a48ffbedc79f3d8fce9060d3a35e58c1b8bc293a",
+  "gold": [
+    {
+      "id": "double-escape",
+      "severity": "medium",
+      "trigger": "Input containing <",
+      "consequence": "Displays entity text rather than the original character."
+    }
+  ],
+  "eligibleAtoms": 2
+}

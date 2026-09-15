@@ -1,0 +1,27 @@
+{
+  "id": "context-rename-field",
+  "category": "context",
+  "split": "development",
+  "baseFiles": {
+    "config.ts": "export const encode=(id:string)=>({userId:id});\n",
+    "caller.ts": "import {encode} from \"./config\";\nexport const render=(id:string)=>JSON.stringify(encode(id)); // Published wire contract requires userId.\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const encode=(id:string)=>({id});\n",
+    "caller.ts": "import {encode} from \"./config\";\nexport const render=(id:string)=>JSON.stringify(encode(id)); // Published wire contract requires userId.\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "e7f1c4e2c9d2192890233e1f6fb319463b8a8fb9c2ac646bf13160cdc2ac3f84",
+  "baseSha": "3af1a76925ef826a930a598c110038187538e1d7",
+  "headSha": "65c504640a046de27f3fd829b0265962b3699522",
+  "gold": [
+    {
+      "id": "rename-field",
+      "severity": "high",
+      "trigger": "Consumer of the documented JSON wire format",
+      "consequence": "Published userId field disappears."
+    }
+  ],
+  "eligibleAtoms": 2
+}

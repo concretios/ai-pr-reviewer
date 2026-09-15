@@ -1,0 +1,27 @@
+{
+  "id": "context-sync-to-async",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const permitted=(u:any)=>u.admin===true;\n",
+    "caller.ts": "import {permitted} from \"./config\";\nexport function secret(u:any){if(!permitted(u))throw Error(\"forbidden\");return \"private\";}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const permitted=async(u:any)=>u.admin===true;\n",
+    "caller.ts": "import {permitted} from \"./config\";\nexport function secret(u:any){if(!permitted(u))throw Error(\"forbidden\");return \"private\";}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "1c8fedde38d807f0e6997c1b00fc910ba800211727cbd187d42d5809642e9349",
+  "baseSha": "dabdd3190987318808f6c4e4e16f7123ebb43614",
+  "headSha": "212eaf1a230c9223e63aa03f6dee9629f02e2a0c",
+  "gold": [
+    {
+      "id": "sync-to-async",
+      "severity": "high",
+      "trigger": "Non-admin user",
+      "consequence": "Promise truthiness bypasses the permission check."
+    }
+  ],
+  "eligibleAtoms": 2
+}

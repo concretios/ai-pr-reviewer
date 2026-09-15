@@ -1,0 +1,27 @@
+{
+  "id": "context-delete-pagination",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const more=(next:string|null)=>next!==null;\n",
+    "caller.ts": "import {more} from \"./config\";\nexport async function all(load:any){let page=await load(null);const rows=[...page.rows];while(more(page.next)){page=await load(page.next);rows.push(...page.rows);}return rows;}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const more=(next:string|null)=>false;\n",
+    "caller.ts": "import {more} from \"./config\";\nexport async function all(load:any){let page=await load(null);const rows=[...page.rows];while(more(page.next)){page=await load(page.next);rows.push(...page.rows);}return rows;}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "e3bb7340bc8b59305621c201c934dc3ecf22cf06fec52196d21a3f52e05c40ee",
+  "baseSha": "08bb85a0aefdb26ba981bb7874c3d909031d18b0",
+  "headSha": "1aa0e3b5d2e8b0803c334821b71b605235d7db44",
+  "gold": [
+    {
+      "id": "delete-pagination",
+      "severity": "medium",
+      "trigger": "Multiple result pages",
+      "consequence": "Only the first page is returned."
+    }
+  ],
+  "eligibleAtoms": 2
+}

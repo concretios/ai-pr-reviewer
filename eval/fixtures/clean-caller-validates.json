@@ -1,0 +1,20 @@
+{
+  "id": "clean-caller-validates",
+  "category": "clean",
+  "split": "held-out",
+  "baseFiles": {
+    "guard.ts": "export const parse = (s:string) => JSON.parse(s);\n",
+    "caller.ts": "import { parse } from \"./guard\";\nexport function load(s:string) { try { return parse(s); } catch { return null; } }\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "guard.ts": "export function parse(s:string) { return JSON.parse(s); }\n",
+    "caller.ts": "import { parse } from \"./guard\";\nexport function load(s:string) { try { return parse(s); } catch { return null; } }\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "d4ec833004b602537b6959810dec16db0a2950fdd09c61dc9eef2c3294834bcb",
+  "baseSha": "cae8ea54e56eada6d0734a651be016fa7f00468b",
+  "headSha": "6b5a9905f6810eaeb4a8eeefba125feae5a70770",
+  "gold": [],
+  "eligibleAtoms": 2
+}

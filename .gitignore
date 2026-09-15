@@ -17,3 +17,7 @@ context.json
 prompt.txt
 review.json
 rules.txt
+
+# v2 generated local diagnostics (dist and schemas are committed)
+eval-results/
+coverage/

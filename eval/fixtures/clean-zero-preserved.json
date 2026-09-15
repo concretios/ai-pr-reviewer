@@ -1,0 +1,18 @@
+{
+  "id": "clean-zero-preserved",
+  "category": "clean",
+  "split": "development",
+  "baseFiles": {
+    "service.ts": "export const limit = (n?: number) => n === undefined ? 10 : n;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "service.ts": "export const limit = (n?: number) => n ?? 10;\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "1d3ef72aee7c63a596fb05f491063233a5277928f817fa75a6b8ea5770a2a5fe",
+  "baseSha": "5093f7530b1f22ca49808960de0e7c3fb9fb0bc0",
+  "headSha": "671514a988e4ae150ac97c701f23ffca5141022e",
+  "gold": [],
+  "eligibleAtoms": 2
+}

@@ -1,0 +1,27 @@
+{
+  "id": "context-decimal-radix",
+  "category": "context",
+  "split": "held-out",
+  "baseFiles": {
+    "config.ts": "export const parse=(s:string)=>parseInt(s,10);\n",
+    "caller.ts": "import {parse} from \"./config\";\nexport function amount(s:string){if(!/^\\d+$/.test(s))throw Error(\"decimal required\");return parse(s)*100;}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "headFiles": {
+    "config.ts": "export const parse=(s:string)=>parseInt(s,16);\n",
+    "caller.ts": "import {parse} from \"./config\";\nexport function amount(s:string){if(!/^\\d+$/.test(s))throw Error(\"decimal required\");return parse(s)*100;}\n",
+    "review-rules.md": "Review correctness and security using explicit source contracts. Findings are advisory.\n"
+  },
+  "sourceHash": "a3563a2a71c5e8d1689dfc1cb415c245b310c469c362f66840250d7c8a7f5068",
+  "baseSha": "6a548badc9b3bf1428acae0947ecb6806004b1a8",
+  "headSha": "dca82870e951c3a828a3f041afe8796fbf974846",
+  "gold": [
+    {
+      "id": "decimal-radix",
+      "severity": "high",
+      "trigger": "Decimal amount 10",
+      "consequence": "Decimal amounts are interpreted as hexadecimal."
+    }
+  ],
+  "eligibleAtoms": 2
+}

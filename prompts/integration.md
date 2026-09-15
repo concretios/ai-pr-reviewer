@@ -1,0 +1,2 @@
+Answer the explicit cross-file relationship questions. Both raw endpoints are supplied, with bounded excerpts. Request exact definitions, guards, callers, or tests if essential evidence is absent. Do not infer a defect merely because related code changed in separate batches.
+Return exactly the expected relation IDs. A reviewed relation means its explicit question was examined using adequate context; unresolved means essential context is missing. Integration completion does not increase changed-line coverage. All review protocol and evidence requirements also apply here.
