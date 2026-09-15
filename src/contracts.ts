@@ -25,10 +25,14 @@ export type Inventory = { atoms: Atom[]; evidence: Map<string, Evidence>; omissi
 export type LookupResult = { request: LookupRequest; evidence: Evidence[]; limited: boolean; reason?: string };
 export type Diagnostic = { taskId?: string; reason: string; disposition?: 'rejected_invalid_evidence' | 'unresolved_missing_context' };
 export type Attempt = { taskId: string; preflight: number; finishReason?: string; totalTokenCount?: number; promptTokenCount?: number;
-  candidatesTokenCount?: number; thoughtsTokenCount?: number; error?: string };
+  candidatesTokenCount?: number; thoughtsTokenCount?: number; cachedContentTokenCount?: number;
+  purpose?: 'initial' | 'lookup_continuation' | 'invalid_replacement' | 'transport_retry' | 'truncation_recovery';
+  outcome?: 'pending' | 'result' | 'invalid' | 'context_request' | 'truncated' | 'blocked' | 'transport_error' | 'cancelled';
+  protocolVersion?: string; requestHash?: string; thinkingBudget?: number; error?: string };
 export type UsageReport = {
   model: string; generationAttempts: number; reportedAttempts: number; unreportedAttempts: number;
   totalTokens: number | null; inputTokens: number | null; outputTokens: number | null;
+  cachedTokens?: number | null; cacheReportedAttempts?: number;
   componentAttempts: number; thoughtsTokens: number | null; thoughtsReportedAttempts: number;
   estimatedCostUsd: number | null; pricedAttempts: number; pricingChecked: string; pricingSource: string;
   pricingBasis: string; unavailableReason?: string;

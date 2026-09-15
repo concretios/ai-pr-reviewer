@@ -628,7 +628,7 @@ var require_errors = __commonJS({
       [kRequestRetryError] = true;
     };
     var kResponseError = /* @__PURE__ */ Symbol.for("undici.error.UND_ERR_RESPONSE");
-    var ResponseError = class extends UndiciError {
+    var ResponseError2 = class extends UndiciError {
       constructor(message2, code, { headers, data }) {
         super(message2);
         this.name = "ResponseError";
@@ -694,7 +694,7 @@ var require_errors = __commonJS({
       BalancedPoolMissingUpstreamError,
       ResponseExceededMaxSizeError,
       RequestRetryError,
-      ResponseError,
+      ResponseError: ResponseError2,
       SecureProxyConnectionError,
       MessageSizeExceededError
     };
@@ -46769,7 +46769,23 @@ var TaskResponseSchema = external_exports.discriminatedUnion("kind", [
     findings: external_exports.array(FindingSchema).max(100)
   })
 ]);
-var wireSchema = external_exports.toJSONSchema(TaskResponseSchema, {
+var CompactResponseSchema = external_exports.discriminatedUnion("kind", [
+  external_exports.strictObject({
+    protocolVersion: external_exports.literal("compact-v1"),
+    requestId: id,
+    kind: external_exports.literal("context_request"),
+    requests: external_exports.array(LookupSchema).min(1).max(4)
+  }),
+  external_exports.strictObject({
+    protocolVersion: external_exports.literal("compact-v1"),
+    requestId: id,
+    kind: external_exports.literal("result"),
+    reviewedIds: external_exports.array(id),
+    unresolved: external_exports.array(external_exports.strictObject({ id, reason: explanation })),
+    findings: external_exports.array(FindingSchema).max(100)
+  })
+]);
+var wireSchema = external_exports.toJSONSchema(CompactResponseSchema, {
   target: "draft-7",
   override: ({ jsonSchema }) => {
     delete jsonSchema.maxItems;
@@ -46782,6 +46798,51 @@ var wireSchema = external_exports.toJSONSchema(TaskResponseSchema, {
 delete wireSchema.$schema;
 
 // src/review/validate.ts
+var ResponseError = class extends Error {
+  constructor(feedback) {
+    super(`Invalid response: ${feedback.code}`);
+    this.feedback = feedback;
+  }
+  feedback;
+};
+function decodeCompact(text, task, binding) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new ResponseError({ code: "json" });
+  }
+  if (typeof value !== "object" || !value || !("kind" in value) || !["result", "context_request"].includes(String(value.kind))) throw new ResponseError({ code: "kind" });
+  const parsed = CompactResponseSchema.safeParse(value);
+  if (!parsed.success) throw new ResponseError({ code: "shape" });
+  const response = parsed.data;
+  if (response.requestId !== binding.requestId || task.id !== binding.taskId) throw new ResponseError({ code: "identity" });
+  if (response.kind === "context_request") return { kind: response.kind, taskId: task.id, requests: response.requests };
+  const actual = [...response.reviewedIds, ...response.unresolved.map((i) => i.id)];
+  if (actual.length !== binding.expectedIds.length || unique(actual).length !== actual.length || actual.some((id2) => !binding.expectedIds.includes(id2))) {
+    throw new ResponseError({ code: "completion", expectedIds: binding.expectedIds });
+  }
+  const translate = (map2, id2) => {
+    const stable = map2.get(id2);
+    if (!stable) throw new ResponseError({ code: "reference" });
+    return stable;
+  };
+  const ids = task.kind === "review" ? binding.atoms : binding.relations;
+  const findings = response.findings.map((f) => ({
+    ...f,
+    introducedByAtomIds: f.introducedByAtomIds.map((id2) => translate(binding.atoms, id2)),
+    evidenceIds: f.evidenceIds.map((id2) => translate(binding.evidence, id2))
+  }));
+  return decode3(JSON.stringify({
+    kind: "result",
+    taskId: task.id,
+    items: [
+      ...response.reviewedIds.map((id2) => ({ id: translate(ids, id2), status: "reviewed", reason: "Completion metadata: model marked this obligation reviewed." })),
+      ...response.unresolved.map((item) => ({ ...item, id: translate(ids, item.id), status: "unresolved" }))
+    ],
+    findings
+  }), task);
+}
 function decode3(text, task) {
   const response = TaskResponseSchema.parse(JSON.parse(text));
   if (response.taskId !== task.id) throw new Error("Response taskId does not match");
@@ -46841,7 +46902,13 @@ function summarizeUsage(analysis, model = "") {
   let cost = 0;
   let thoughts = 0;
   let thoughtsReported = 0;
+  let cached2 = 0;
+  let cacheReported = 0;
   for (const attempt of analysis.attempts) {
+    if (tokenCount(attempt.cachedContentTokenCount) && tokenCount(attempt.promptTokenCount) && attempt.cachedContentTokenCount <= attempt.promptTokenCount) {
+      cached2 += attempt.cachedContentTokenCount;
+      cacheReported++;
+    }
     if (tokenCount(attempt.thoughtsTokenCount)) {
       thoughts += attempt.thoughtsTokenCount;
       thoughtsReported++;
@@ -46869,6 +46936,8 @@ function summarizeUsage(analysis, model = "") {
     totalTokens: reported || !attempts ? total : null,
     inputTokens: components || !attempts ? input2 : null,
     outputTokens: components || !attempts ? output2 : null,
+    cachedTokens: cacheReported || !attempts ? cached2 : null,
+    cacheReportedAttempts: cacheReported,
     componentAttempts: components,
     thoughtsTokens: thoughtsReported || !attempts ? thoughts : null,
     thoughtsReportedAttempts: thoughtsReported,
@@ -46894,6 +46963,8 @@ function usageText(analysis, model) {
 | Input tokens | ${number4(usage.inputTokens)} |
 | Output tokens, including thinking | ${number4(usage.outputTokens)} |
 | Thinking tokens (included above, when reported) | ${number4(usage.thoughtsTokens)} |
+| Cached input tokens (reported subset, included in input) | ${number4(usage.cachedTokens ?? null)} |
+| Attempts reporting cache metadata | ${usage.cacheReportedAttempts}/${usage.generationAttempts} |
 | Attempts without total usage | ${usage.unreportedAttempts} |
 | Estimated API cost | ${cost} |
 
@@ -46907,21 +46978,50 @@ Admission budget charged: ${number4(analysis.usage.charged)} tokens; unknown-usa
 
 // src/reporting/render.ts
 var safe = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/@/g, "&#64;");
-function renderFinding(finding) {
+function renderFinding(finding, source) {
+  const links = source ? finding.evidenceIds.map((id2) => {
+    const e = source.evidence.get(id2);
+    return e ? `[${safe(e.path)}:${e.start}-${e.end}](${source.repositoryUrl}/blob/${e.revision}/${e.path.split("/").map(encodeURIComponent).join("/")}#L${e.start}-L${e.end})` : id2;
+  }).join("\n\n") : `Introduced by: ${finding.introducedByAtomIds.join(", ")}
+
+Evidence: ${finding.evidenceIds.join(", ")}`;
   return `### ${finding.severity.toUpperCase()}: ${safe(finding.title)}
 
-Concern ID: ${findingId(finding)}
+${safe(finding.changedBehavior)} ${safe(finding.trigger)} ${safe(finding.consequence)}
 
-**Changed behavior:** ${safe(finding.changedBehavior)}
+<details>
+<summary>Evidence</summary>
 
-**Trigger:** ${safe(finding.trigger)}
+${links}
 
-**Consequence:** ${safe(finding.consequence)}
-
-Introduced by: ${finding.introducedByAtomIds.join(", ")}
-
-Evidence: ${finding.evidenceIds.join(", ")}
+</details>
 `;
+}
+function diagnosis(analysis) {
+  if (analysis.analysisStatus === "unavailable") return "Review unavailable. Manual review needed.";
+  if (analysis.analysisStatus === "skipped") return "No eligible changes to examine.";
+  const concerns = analysis.findings.length ? "Concerns reported." : "No actionable concerns reported in the examined scope.";
+  return concerns + (analysis.analysisStatus !== "complete" ? " Check-up incomplete." : "");
+}
+function mainResult(analysis, sha, model) {
+  const usage = summarizeUsage(analysis, model);
+  const counts = ["critical", "high", "medium", "low"].map((level) => {
+    const n = analysis.findings.filter((f) => f.severity === level).length;
+    return n ? `${n} ${level}` : "";
+  }).filter(Boolean).join(" \xB7 ") || "0 concerns";
+  const cost = usage.estimatedCostUsd === null ? "cost unavailable" : `estimated $${usage.estimatedCostUsd.toFixed(4)} USD before cache discounts`;
+  const incomplete = usage.pricedAttempts < usage.generationAttempts ? ` (incomplete: ${usage.pricedAttempts}/${usage.generationAttempts} attempts priced)` : "";
+  return `**Diagnosis: ${diagnosis(analysis)}**
+
+${counts}
+
+Reviewed commit: ${sha}
+
+Coverage: ${coverage(analysis)}
+
+This run: ${usage.totalTokens === null ? "unknown" : usage.totalTokens.toLocaleString("en-US")} known tokens \xB7 ${cost}${incomplete}
+
+Findings are advisory model-reported concerns.`;
 }
 function detailPages(findings, maxBytes = 47e3) {
   const pages = [];
@@ -46966,20 +47066,28 @@ ${usageText(analysis, model)}
 `;
 }
 function summaryBody(state) {
-  return `<!-- state:${Buffer.from(JSON.stringify(state)).toString("base64")} -->
-## AI PR review
+  const unordered = state.current && (!state.current.order.createdAt || !state.latest.order.createdAt) && state.current.order.runId !== state.latest.order.runId;
+  const primary = unordered ? state.current : state.latest;
+  const key = (r) => `${r.order.runId}/${r.order.attempt}`;
+  const seen = /* @__PURE__ */ new Set([key(primary)]);
+  const history = [state.current, state.latest, state.completed].filter((r) => {
+    if (!r || seen.has(key(r))) return false;
+    seen.add(key(r));
+    return true;
+  });
+  return `<!-- state:${Buffer.from(JSON.stringify({ ...state, version: 2 })).toString("base64")} -->
+## \u{1FA7A} Dr. Concret.io
 
-### Last completed result
+${unordered ? "**This attempt. Relative run ordering is unconfirmed.**\n\n" : ""}${primary.text}${history.length ? `
 
-${state.completed?.text ?? "No completed result recorded."}
+<details>
+<summary>Previous results and other attempts</summary>
 
-### Latest attempt
+${history.map((r) => `Run ${r.order.runId}, attempt ${r.order.attempt} (${r.status})
 
-${state.latest.text}${state.current ? `
+${r.text}`).join("\n\n")}
 
-### This attempt (older or ordering unconfirmed)
-
-${state.current.text}` : ""}`;
+</details>` : ""}`;
 }
 function deliveryStatus(publication) {
   if (!publication.started) return "not_requested";
@@ -47002,7 +47110,7 @@ ${[run.configurationError, run.internalError, ...run.notices].filter(Boolean).ma
 
 ## Concerns
 
-${run.analysis.findings.map(renderFinding).join("\n")}
+${run.analysis.findings.map((f) => renderFinding(f)).join("\n")}
 ## Unresolved scope
 
 ${unresolved.map(([id2, item]) => `- ${id2}: ${safe(item.reason)}`).join("\n")}
@@ -47023,7 +47131,7 @@ var recordSchema = external_exports.object({
   status: external_exports.enum(["complete", "partial", "unavailable", "skipped", "superseded"]),
   text: external_exports.string().max(1e4)
 });
-var stateSchema = external_exports.object({ latest: recordSchema, completed: recordSchema.optional() });
+var stateSchema = external_exports.object({ latest: recordSchema, completed: recordSchema.optional(), current: recordSchema.optional(), version: external_exports.literal(2).optional() });
 function compareOrder(a, b) {
   if (a.runId === b.runId) return a.attempt - b.attempt;
   if (!a.createdAt || !b.createdAt) return void 0;
@@ -47054,38 +47162,17 @@ async function publish(options) {
   const root = `/repos/${manifest.repository}`;
   const commentsPath = `${root}/issues/${manifest.prNumber}/comments`;
   const reviewsPath = `${root}/pulls/${manifest.prNumber}/reviews`;
+  const inlinePath = `${root}/pulls/${manifest.prNumber}/comments`;
+  const web = `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${manifest.repository}`;
   const marker = (id2) => `<!-- ai-pr-reviewer:v2:${settings.bot_name}:${id2} -->`;
-  const attemptId = `${order.runId}-${order.attempt}-${manifest.headSha}`;
-  const pages = detailPages(analysis.findings);
-  const details = pages.map((page, index) => {
-    const id2 = `detail-${attemptId}-${index + 1}`;
-    return {
-      operation: { id: id2, required: true, contentHash: "", state: "pending", findingIds: page.findingIds },
-      body: `${marker(id2)}
-## Advisory concerns, page ${index + 1}/${pages.length}
-
-Captured head: ${manifest.headSha}
-
-${page.text}`
-    };
-  });
-  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
-  const eligible = settings.post_inline_comments ? analysis.findings.filter((f) => f.anchor && rank[f.severity] <= rank[settings.comment_severity_threshold]) : [];
-  const inline = [];
-  for (let offset = 0; offset < eligible.length; offset += 50) {
-    const findings = eligible.slice(offset, offset + 50);
-    const id2 = `inline-${manifest.headSha}-${hash2(findings.map(findingId)).slice(0, 24)}`;
-    inline.push({
-      operation: { id: id2, required: false, contentHash: "", state: "pending", findingIds: findings.map(findingId) },
-      body: `${marker(id2)}
-Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findings)}. All concerns are retained in detail comments.`,
-      comments: findings.map((f) => ({ path: f.anchor.path, side: f.anchor.side, line: f.anchor.line, body: renderFinding(f) }))
-    });
-  }
-  const summaryOperation = { id: "summary", required: true, contentHash: hash2(analysisText(analysis, manifest.headSha, manifest.model)), state: "pending", findingIds: analysis.findings.map(findingId) };
-  publication.operations = [...details.map((d) => d.operation), ...inline.map((i) => i.operation), summaryOperation];
-  for (const detail of details) detail.operation.contentHash = hash2(detail.body);
-  for (const item of inline) item.operation.contentHash = hash2(item.body);
+  const newOperation = (id2, required2, findingIds = []) => {
+    const operation = { id: id2, required: required2, findingIds, state: "pending", contentHash: "" };
+    publication.operations.push(operation);
+    return operation;
+  };
+  const allIds = analysis.findings.map(findingId);
+  const prepare = newOperation("summary-prepare", true, allIds);
+  const summary2 = newOperation("summary", true, allIds);
   const fresh = async () => {
     if (await options.fresh()) return true;
     publication.superseded = true;
@@ -47093,12 +47180,13 @@ Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findi
   };
   let existing = [];
   const trusted = (items, id2) => items.filter((c) => c.user.id === authorId && c.body.startsWith(marker(id2) + "\n"));
-  async function deliver(operation, body, review) {
+  async function deliver(operation, body, identity = operation.id, review) {
     operation.contentHash = hash2(body);
     const collection = review ? reviewsPath : commentsPath;
     const items = review ? await api.list(collection) : existing;
-    const candidates = trusted(items, operation.id);
-    const identical = candidates.find((c) => hash2(c.body) === operation.contentHash && (!review || c.commit_id === manifest.headSha));
+    const candidates = trusted(items, identity);
+    const matches = (c) => hash2(c.body) === operation.contentHash && (!review || c.commit_id === manifest.headSha);
+    const identical = candidates.find(matches);
     if (identical) {
       operation.state = "confirmed";
       operation.remoteId = identical.id;
@@ -47111,7 +47199,7 @@ Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findi
         previous ? `${root}/issues/comments/${previous.id}` : collection,
         review ? { body, event: "COMMENT", commit_id: manifest.headSha, comments: review.comments } : { body }
       );
-      if (result.user.id !== authorId || hash2(result.body) !== operation.contentHash || review && result.commit_id !== manifest.headSha) throw new GitHubError("Accepted response identity/content mismatch", true);
+      if (result.user.id !== authorId || !matches(result)) throw new GitHubError("Accepted response identity/content mismatch", true);
       operation.state = "confirmed";
       operation.remoteId = result.id;
       if (!review) existing = [...existing.filter((c) => c.id !== result.id), result];
@@ -47123,7 +47211,7 @@ Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findi
       }
       try {
         const reconciled = await api.list(collection);
-        const found = trusted(reconciled, operation.id).find((c) => hash2(c.body) === operation.contentHash && (!review || c.commit_id === manifest.headSha));
+        const found = trusted(reconciled, identity).find(matches);
         if (found) {
           operation.state = "confirmed";
           operation.remoteId = found.id;
@@ -47136,45 +47224,211 @@ Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findi
       operation.state = "unconfirmed";
     }
   }
+  const targets = [];
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 };
+  for (const finding of analysis.findings) {
+    if (!settings.post_inline_comments || rank[finding.severity] > rank[settings.comment_severity_threshold]) continue;
+    let anchor2;
+    if (finding.anchor) anchor2 = { ...finding.anchor, subject_type: "line" };
+    else if (options.inventory) {
+      const atoms = options.inventory.atoms.filter((a) => finding.introducedByAtomIds.includes(a.id));
+      const paths = new Set(atoms.map((a) => a.side === "LEFT" ? a.oldPath : a.path));
+      if (atoms.length === finding.introducedByAtomIds.length && paths.size === 1) {
+        const path = [...paths][0];
+        if (options.inventory.atoms.some((a) => a.path === path && a.side === "RIGHT")) anchor2 = { path, subject_type: "file" };
+      }
+    }
+    if (!anchor2) continue;
+    const id2 = `finding-${manifest.headSha}-${findingId(finding)}`;
+    const body = `${marker(id2)}
+${renderFinding(finding, options.inventory ? { repositoryUrl: web, evidence: options.inventory.evidence } : void 0)}`;
+    const operation = newOperation(id2, false, [findingId(finding)]);
+    operation.contentHash = hash2(body);
+    if (Buffer.byteLength(body) >= 5e4) {
+      operation.state = "failed";
+      operation.error = "Inline comment exceeds safe size; full finding retained in required fallback";
+    }
+    targets.push({ finding, ...anchor2, operation, body });
+  }
+  const pages = detailPages(analysis.findings);
+  let details = [];
   try {
     if (!await fresh()) return publication;
     existing = await api.list(commentsPath);
     if (!await fresh()) return publication;
     publication.started = true;
-    for (const detail of details) {
-      if (!await fresh()) break;
-      await deliver(detail.operation, detail.body);
-    }
-    if (!publication.superseded && await fresh()) {
-      for (const item of inline) {
-        if (!await fresh()) break;
-        try {
-          await deliver(item.operation, item.body, { comments: item.comments });
-        } catch (error63) {
-          item.operation.state = "failed";
-          item.operation.error = message(error63);
+    let remote = [];
+    let reviews = [];
+    let inlineReadable = true;
+    if (targets.length) {
+      try {
+        reviews = await api.list(reviewsPath);
+        remote = await api.list(inlinePath);
+      } catch (error63) {
+        inlineReadable = false;
+        for (const t of targets) {
+          t.operation.state = "unconfirmed";
+          t.operation.error = message(error63);
         }
       }
     }
-    if (!publication.superseded && await fresh()) {
-      existing = await api.list(commentsPath);
-      const previous = readSummary(trusted(existing, "summary")[0]);
-      const detailStatus = details.map((d) => `- Page ${d.operation.id}: ${d.operation.state}${d.operation.remoteId ? ` (comment ${d.operation.remoteId})` : ""}`).join("\n");
-      const inlineLimit = inline.some((i) => i.operation.state !== "confirmed") ? "\n\nInline delivery is incomplete. All accepted concerns are required in the detail pages above." : "";
-      const detailText = detailStatus.length < 4e3 ? detailStatus : `${details.filter((d) => d.operation.state === "confirmed").length}/${details.length} required detail pages confirmed. See artifact for operation IDs.`;
-      const current = { order, status: analysis.status, text: analysisText(analysis, manifest.headSha, manifest.model) + "\n" + detailText + inlineLimit + "\n\n" + (options.notices ?? []).slice(0, 8).join("\n").slice(0, 1e3) };
-      const body = `${marker("summary")}
-${summaryBody(mergeSummary(previous, current, details.every((d) => d.operation.state === "confirmed")))}`;
-      if (Buffer.byteLength(body) >= 5e4) throw new Error("Required summary exceeds safe comment size");
-      if (await fresh()) await deliver(summaryOperation, body);
+    const legacyReviews = new Set(reviews.filter((r) => r.user.id === authorId && r.commit_id === manifest.headSha && r.body.startsWith(`<!-- ai-pr-reviewer:v2:${settings.bot_name}:inline-${manifest.headSha}-`)).map((r) => r.id));
+    const matchesTarget = (c, t) => c.user.id === authorId && !c.in_reply_to_id && (c.original_commit_id ?? c.commit_id) === manifest.headSha && c.path === t.path && (t.subject_type === "file" ? c.subject_type === "file" : c.subject_type !== "file" && c.side === t.side && (c.original_line ?? c.line) === t.line) && (c.body.startsWith(marker(t.operation.id) + "\n") || legacyReviews.has(c.pull_request_review_id) && c.body.includes(`Concern ID: ${findingId(t.finding)}
+`));
+    for (const t of targets) {
+      t.operation.contentHash = hash2(t.body);
+      const match = remote.find((c) => matchesTarget(c, t));
+      if (match) {
+        t.operation.state = "confirmed";
+        t.operation.remoteId = match.id;
+        t.operation.contentHash = hash2(match.body);
+      }
     }
+    const previous = readSummary(trusted(existing, "summary")[0]);
+    const dates = /* @__PURE__ */ new Map();
+    for (const record2 of [previous?.latest, previous?.completed, previous?.current]) {
+      if (!record2 || record2.order.createdAt) continue;
+      if (!dates.has(record2.order.runId)) {
+        try {
+          const metadata = await api.get(`${root}/actions/runs/${record2.order.runId}`);
+          dates.set(record2.order.runId, Number.isFinite(Date.parse(metadata.created_at)) ? metadata.created_at : "");
+        } catch {
+          dates.set(record2.order.runId, "");
+        }
+      }
+      record2.order.createdAt = dates.get(record2.order.runId);
+    }
+    const compact = (r) => r ? { ...r, text: r.text.slice(0, 1400) } : void 0;
+    const prior = previous ? { latest: compact(previous.latest), completed: compact(previous.completed), current: compact(previous.current) } : void 0;
+    const runLink = `[Workflow and report](${web}/actions/runs/${order.runId})`;
+    const current = { order, status: analysis.status, text: `${mainResult(analysis, manifest.headSha, manifest.model)}
+
+${runLink}` };
+    const merged = (eligible) => mergeSummary(prior, current, eligible && details.every((d) => d.operation.state === "confirmed"));
+    const render = (fallback2, eligible = false) => {
+      const incomplete = targets.some((t) => t.operation.state !== "confirmed");
+      const linked = targets.filter((t) => t.operation.remoteId);
+      const links = linked.slice(0, 20).map((t) => `[${safe(t.finding.title.slice(0, 80))}](${web}/pull/${manifest.prNumber}#discussion_r${t.operation.remoteId})`);
+      const unresolved = [...Object.values(analysis.atoms), ...Object.values(analysis.relations)].filter((v) => v.status !== "reviewed");
+      const reasons = [...new Set(unresolved.map((v) => v.reason))].slice(0, 12).map((reason) => `- ${safe(reason.slice(0, 350))}`).join("\n");
+      return `${marker("summary")}
+${summaryBody(merged(eligible))}
+
+<details>
+<summary>All findings for ${manifest.headSha.slice(0, 7)} (${analysis.findings.length})</summary>
+
+${fallback2 || "No actionable concerns reported."}
+
+</details>
+
+<details>
+<summary>Coverage limitations and delivery status for this attempt</summary>
+
+${incomplete ? "Inline delivery is incomplete. All accepted concerns are retained in the main comment or required overflow pages." : "Requested line/file comments confirmed."}
+
+${links.join("\n\n")}
+
+${reasons}
+
+${(options.notices ?? []).slice(0, 8).map((n) => safe(n.slice(0, 250))).join("\n")}
+
+</details>
+
+<details>
+<summary>Token usage and estimated cost for this attempt</summary>
+
+${usageText(analysis, manifest.model)}
+
+</details>`;
+    };
+    let fallback = pages.map((p) => p.text).join("");
+    if (Buffer.byteLength(render(fallback)) >= 35e3) {
+      details = pages.map((page, i) => {
+        const id2 = `detail-${order.runId}-${order.attempt}-${manifest.headSha}-${i + 1}`;
+        const operation = newOperation(id2, true, page.findingIds);
+        return { operation, body: `${marker(id2)}
+## \u{1FA7A} Dr. Concret.io: findings ${i + 1}/${pages.length}
+
+Reviewed commit: ${manifest.headSha}
+
+${page.text}` };
+      });
+      for (const d of details) {
+        if (!await fresh()) return publication;
+        await deliver(d.operation, d.body);
+      }
+      fallback = details.map((d, i) => d.operation.remoteId ? `[Findings page ${i + 1}](${web}/pull/${manifest.prNumber}#issuecomment-${d.operation.remoteId})` : `Findings page ${i + 1}: ${d.operation.state}; see the report artifact.`).join("\n\n");
+    }
+    const initialBody = render(fallback);
+    if (Buffer.byteLength(initialBody) >= 5e4) throw new Error("Required main comment exceeds safe size");
+    if (!await fresh()) return publication;
+    await deliver(prepare, initialBody, "summary");
+    if (prepare.state !== "confirmed") return publication;
+    const mainLink = `${web}/pull/${manifest.prNumber}#issuecomment-${prepare.remoteId}`;
+    const missingLines = targets.filter((t) => t.subject_type === "line" && t.operation.state === "pending");
+    if (inlineReadable) for (let offset = 0; offset < missingLines.length; offset += 50) {
+      const batch = missingLines.slice(offset, offset + 50);
+      if (!await fresh()) return publication;
+      const id2 = `inline-${manifest.headSha}-${hash2(batch.map((t) => t.operation.id).sort()).slice(0, 24)}`;
+      const batchOp = { id: id2, required: false, findingIds: [], state: "pending", contentHash: "" };
+      const body2 = `${marker(id2)}
+\u{1FA7A} Dr. Concret.io: [main diagnosis](${mainLink}).
+
+Payload: ${hash2(batch.map((t) => t.body))}`;
+      try {
+        await deliver(batchOp, body2, id2, { comments: batch.map((t) => ({ path: t.path, side: t.side, line: t.line, body: t.body })) });
+        if (batchOp.state === "confirmed") {
+          try {
+            remote = await api.list(inlinePath);
+          } catch {
+          }
+        }
+        for (const t of batch) {
+          t.operation.state = batchOp.state;
+          t.operation.error = batchOp.error;
+          t.operation.remoteId = remote.find((c) => matchesTarget(c, t))?.id;
+        }
+      } catch (error63) {
+        for (const t of batch) {
+          t.operation.state = "failed";
+          t.operation.error = message(error63);
+        }
+      }
+    }
+    if (inlineReadable) for (const t of targets.filter((t2) => t2.subject_type === "file" && t2.operation.state === "pending")) {
+      if (!await fresh()) return publication;
+      try {
+        const result = await api.write("POST", inlinePath, { body: t.body, commit_id: manifest.headSha, path: t.path, subject_type: "file" });
+        if (!matchesTarget(result, t)) throw new GitHubError("File comment response mismatch", true);
+        t.operation.state = "confirmed";
+        t.operation.remoteId = result.id;
+      } catch (error63) {
+        t.operation.error = message(error63);
+        t.operation.state = error63 instanceof GitHubError && !error63.uncertain ? "failed" : "unconfirmed";
+        if (t.operation.state === "unconfirmed") {
+          try {
+            const match = (await api.list(inlinePath)).find((c) => matchesTarget(c, t));
+            if (match) {
+              t.operation.state = "confirmed";
+              t.operation.remoteId = match.id;
+              t.operation.error = void 0;
+            }
+          } catch {
+          }
+        }
+      }
+    }
+    if (!await fresh()) return publication;
+    const body = render(fallback, true);
+    if (Buffer.byteLength(body) >= 5e4) throw new Error("Final main comment exceeds safe size");
+    await deliver(summary2, body, "summary");
   } catch (error63) {
     publication.started = true;
-    for (const operation of publication.operations.filter((o) => o.state === "pending")) operation.error = message(error63);
+    for (const op of publication.operations.filter((o) => o.state === "pending")) op.error = message(error63);
   } finally {
-    if (publication.started) for (const operation of publication.operations.filter((o) => o.state === "pending")) {
-      operation.state = "failed";
-      operation.error ??= publication.superseded ? "Superseded before this required write could be issued" : "Write not issued before finalization";
+    if (publication.started) for (const op of publication.operations.filter((o) => o.state === "pending")) {
+      op.state = "failed";
+      op.error ??= publication.superseded ? "Superseded before publication finished" : "Write not issued before finalization";
     }
     publication.status = deliveryStatus(publication);
   }
@@ -47497,11 +47751,131 @@ Report an actionable concern only when you can identify:
 
 Check supplied guards, callers, and tests before reporting. Do not invent source, callers, or runtime behavior. Request bounded context when essential evidence is missing. Return no findings when none meet these requirements. Do not supply praise, generic missing-test suggestions, new rules, or merge verdicts.
 
-For a completed response, set kind to "result", copy taskId exactly, and return exactly one item for every expected ID, with status reviewed or unresolved and a specific reason. The input's task kind (review or integration) is not the response kind. For additional context, set kind to "context_request" and copy taskId exactly; this completes no work. You may request one round of at most four exact ranges (200 lines each) or literal searches. Searches and reads use the supplied side's pinned revision. Lookups are bounded and may return limit metadata. Missing essential evidence remains unresolved.
+Source is stored once in sourceBlocks. Each evidence entry identifies an exact interval within a block. Atom ranges refer to that source, with text supplied separately only when needed. Use only the original evidence intervals, not other lines in a combined block, to support a cited evidence ID. IDs are short aliases valid only for this request.
+
+Copy protocolVersion and requestId exactly. For a completed response, set kind to "result", list every examined expected ID in reviewedIds, and list remaining expected IDs in unresolved with specific reasons. These two lists must be disjoint and cover exactly expectedIds, with no duplicates or invented IDs. Do not write explanations for reviewed IDs. The input task kind (review or integration) is not the response kind. For additional context, set kind to "context_request"; this completes no work. You may request one round of at most four exact ranges (200 lines each) or literal searches. Searches and reads use the supplied side's pinned revision. Lookups are bounded and may return limit metadata. Missing essential evidence remains unresolved. If repair feedback is present, correct that protocol error using the current request's IDs and source.
 
 Every concern needs introducedByAtomIds identifying an actual change and evidenceIds identifying supplied raw source. Unchanged and base-side evidence can support the trigger. Only anchor to an actual changed line using its exact path, LEFT or RIGHT side, and 1-based line number; otherwise use null. Report critical/high/medium/low severity according to actual consequence. These concerns are model-reported, not independently verified defects.
+
+Before including a finding, check its direction: the NEW code must introduce the described failure. A new finally block that restores cleanup or an overlay that prevents concurrent actions is not a regression merely because the old code lacked it. Describe the before/after change, the supported failing input or situation, and why supplied guards, callers, or tests do not prevent the consequence. Do not report a removed CSS rule without evidence that an affected consumer still needs it. Exclude generic missing-test comments, personal preferences, unsupported assumptions, and improvements described as bugs. Keep changedBehavior, trigger and consequence concise, usually one sentence each. More explanation is appropriate only when needed to establish the causal chain. No quota of findings and no forced praise.
 `;
 var integrationPrompt = "Answer the explicit cross-file relationship questions. Both raw endpoints are supplied, with bounded excerpts. Request exact definitions, guards, callers, or tests if essential evidence is absent. Do not infer a defect merely because related code changed in separate batches.\nReturn exactly the expected relation IDs. A reviewed relation means its explicit question was examined using adequate context; unresolved means essential context is missing. Integration completion does not increase changed-line coverage. All review protocol and evidence requirements also apply here.\n";
+
+// src/providers/projection.ts
+var protocolVersion = "compact-v1";
+function sourceBlocks(evidence) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const e of evidence) {
+    const key = JSON.stringify([e.path, e.revision, e.blobId, e.side]);
+    groups.set(key, [...groups.get(key) ?? [], e]);
+  }
+  const blocks = [];
+  const references = [];
+  const add = (items, start, end, text) => {
+    const first = items[0];
+    const id2 = `s${blocks.length}`;
+    blocks.push({ id: id2, path: first.path, revision: first.revision, blobId: first.blobId, side: first.side, start, end, text });
+    for (const e of items) references.push({ id: e.id, block: id2, start: e.start, end: e.end });
+  };
+  for (const items of groups.values()) {
+    items.sort((a, b) => a.start - b.start || a.end - b.end || a.id.localeCompare(b.id));
+    const lines = /* @__PURE__ */ new Map();
+    let conflict = false;
+    for (const e of items) {
+      const parts = e.text.split("\n");
+      if (parts.length !== e.end - e.start + 1) conflict = true;
+      parts.forEach((text, i) => {
+        const line = e.start + i;
+        if (lines.has(line) && lines.get(line) !== text) conflict = true;
+        lines.set(line, text);
+      });
+    }
+    if (conflict) {
+      for (const e of items) add([e], e.start, e.end, e.text);
+      continue;
+    }
+    let segment = [];
+    let start = 0;
+    let end = 0;
+    const flush = () => {
+      if (segment.length) add(segment, start, end, Array.from({ length: end - start + 1 }, (_, i) => lines.get(start + i)).join("\n"));
+    };
+    for (const e of items) {
+      if (!segment.length || e.start > end + 1) {
+        flush();
+        segment = [];
+        start = e.start;
+        end = e.end;
+      }
+      segment.push(e);
+      end = Math.max(end, e.end);
+    }
+    flush();
+  }
+  return { blocks, references };
+}
+function project(task, inventory2, lookups = []) {
+  const relations = inventory2.relations.filter((r) => task.kind === "integration" ? task.relationIds.includes(r.id) : r.atomIds.every((id2) => task.atomIds.includes(id2)));
+  const atoms = inventory2.atoms.filter((a) => task.kind === "review" ? task.atomIds.includes(a.id) : relations.some((r) => r.atomIds.includes(a.id)));
+  const evidence = [...new Set(task.evidenceIds)].sort().map((id2) => {
+    const e = inventory2.evidence.get(id2);
+    if (!e) throw new Error("Missing supplied evidence");
+    return e;
+  });
+  const aliases = (items, prefix) => new Map(items.map((i) => i.id).sort().map((id2, index) => [id2, `${prefix}${index}`]));
+  const atomIds = aliases(atoms, "a");
+  const evidenceIds = aliases(evidence, "e");
+  const relationIds = aliases(relations, "r");
+  const reference = (map2, id2) => {
+    const value = map2.get(id2);
+    if (value === void 0) throw new Error("Reference outside request");
+    return value;
+  };
+  const views = sourceBlocks(evidence);
+  const path = (a) => a.side === "LEFT" ? a.oldPath : a.path;
+  const wireAtoms = atoms.map((a) => {
+    const recoverable = views.blocks.some((b) => b.path === path(a) && b.side === a.side && a.evidenceIds.some((id2) => views.references.some((r) => r.id === id2 && r.block === b.id)) && b.start <= a.start && b.end >= a.end && b.text.split("\n").slice(a.start - b.start, a.end - b.start + 1).join("\n") === a.text);
+    return {
+      id: reference(atomIds, a.id),
+      path: path(a),
+      side: a.side,
+      start: a.start,
+      end: a.end,
+      evidenceIds: a.evidenceIds.filter((id2) => evidenceIds.has(id2)).map((id2) => reference(evidenceIds, id2)),
+      ...recoverable ? {} : { text: a.text }
+    };
+  });
+  const payload = {
+    kind: task.kind,
+    expectedIds: obligations(task).map((id2) => reference(task.kind === "review" ? atomIds : relationIds, id2)),
+    atoms: wireAtoms,
+    relations: relations.map((r) => ({
+      id: reference(relationIds, r.id),
+      question: r.question,
+      atomIds: r.atomIds.map((id2) => reference(atomIds, id2)),
+      evidenceIds: r.evidenceIds.filter((id2) => evidenceIds.has(id2)).map((id2) => reference(evidenceIds, id2))
+    })),
+    sourceBlocks: views.blocks,
+    evidence: views.references.map((e) => ({ ...e, id: reference(evidenceIds, e.id) })),
+    lookups: lookups.map((l) => ({
+      request: l.request,
+      limited: l.limited,
+      reason: l.reason,
+      evidenceIds: l.evidence.map((e) => reference(evidenceIds, e.id))
+    }))
+  };
+  const reverse = (map2) => new Map([...map2].map(([id2, alias]) => [alias, id2]));
+  const binding = {
+    taskId: task.id,
+    requestId: "",
+    expectedIds: payload.expectedIds,
+    atoms: reverse(atomIds),
+    evidence: reverse(evidenceIds),
+    relations: reverse(relationIds)
+  };
+  const identity = hash2([task, payload, [...binding.atoms], [...binding.evidence], [...binding.relations]]);
+  return { payload, binding, identity };
+}
 
 // src/providers/provider.ts
 var ProviderError = class extends Error {
@@ -47514,19 +47888,15 @@ var ProviderError = class extends Error {
   retryAfterMs;
 };
 function requestFor(task, inventory2, rules, model, output2, compact = false, lookups = []) {
-  return {
+  return prepareRequest(task, inventory2, rules, model, output2, compact, lookups).request;
+}
+function prepareRequest(task, inventory2, rules, model, output2, compact = false, lookups = [], feedback) {
+  const { payload, binding, identity } = project(task, inventory2, lookups);
+  const input2 = { rules: rules.files, protocolVersion, requestId: "", ...payload, ...feedback ? { repair: feedback } : {} };
+  const request = {
     model: model.startsWith("models/") ? model : `models/${model}`,
     systemInstruction: { parts: [{ text: reviewPrompt + (task.kind === "integration" ? "\n" + integrationPrompt : "") }] },
-    contents: [{ role: "user", parts: [{ text: JSON.stringify({
-      taskId: task.id,
-      kind: task.kind,
-      expectedIds: obligations(task),
-      atoms: inventory2.atoms.filter((a) => task.kind === "review" ? task.atomIds.includes(a.id) : inventory2.relations.some((r) => task.relationIds.includes(r.id) && r.atomIds.includes(a.id))),
-      relations: inventory2.relations.filter((r) => task.kind === "integration" ? task.relationIds.includes(r.id) : r.atomIds.every((id2) => task.atomIds.includes(id2))),
-      evidence: task.evidenceIds.map((id2) => inventory2.evidence.get(id2)),
-      rules: rules.files,
-      lookups
-    }) }] }],
+    contents: [{ role: "user", parts: [{ text: JSON.stringify(input2) }] }],
     generationConfig: {
       candidateCount: 1,
       temperature: 0.2,
@@ -47536,6 +47906,10 @@ function requestFor(task, inventory2, rules, model, output2, compact = false, lo
       responseJsonSchema: wireSchema
     }
   };
+  binding.requestId = hash2([identity, request]).slice(0, 24);
+  input2.requestId = binding.requestId;
+  request.contents[0].parts[0].text = JSON.stringify(input2);
+  return { request, binding };
 }
 
 // src/providers/gemini.ts
@@ -47543,7 +47917,8 @@ var usageSchema = external_exports.object({
   totalTokenCount: external_exports.number().int().nonnegative().optional(),
   promptTokenCount: external_exports.number().int().nonnegative().optional(),
   candidatesTokenCount: external_exports.number().int().nonnegative().optional(),
-  thoughtsTokenCount: external_exports.number().int().nonnegative().optional()
+  thoughtsTokenCount: external_exports.number().int().nonnegative().optional(),
+  cachedContentTokenCount: external_exports.number().int().nonnegative().optional()
 });
 var responseSchema = external_exports.object({
   usageMetadata: usageSchema.optional(),
@@ -47821,16 +48196,16 @@ async function runReview(options) {
     for (const id2 of obligations(task)) state[id2] = { status: "unresolved", reason };
     run.diagnostics.push({ taskId: task.id, reason, disposition: reason.includes("context") ? "unresolved_missing_context" : void 0 });
   };
-  const recoverSplit = async (task, parentCount, compact = false, context = []) => {
+  const recoverSplit = async (task, parentCount, compact = false, context = [], feedback, purpose = "truncation_recovery") => {
     const children = splitTask(task, inventory2);
     if (!children.length) return false;
     const lookupEvidence = context.flatMap((result) => result.evidence.map((e) => e.id));
     for (const child of children) child.evidenceIds = unique([...child.evidenceIds, ...lookupEvidence]);
     const counts2 = [];
-    for (const child of children) counts2.push(await count(request(child, compact, context)));
+    for (const child of children) counts2.push(await count(prepareRequest(child, inventory2, rules, model, limits2.output, compact, context, feedback).request));
     if (!open3()) return false;
     if (counts2.some((c) => c >= parentCount)) return false;
-    for (const child of children) continuation.set(child.id, { compact, context });
+    for (const child of children) continuation.set(child.id, { compact, context, feedback, purpose });
     queue.unshift(...children);
     if (task.kind === "review") for (const relation of inventory2.relations) {
       if (run.relations[relation.id] || !relation.atomIds.some((id3) => task.atomIds.includes(id3))) continue;
@@ -47840,15 +48215,15 @@ async function runReview(options) {
     }
     return true;
   };
-  async function execute(task, compact = false, context = []) {
+  async function execute(task, compact = false, context = [], purpose = "initial", feedback) {
     if (!open3()) return;
     const allowance = allowed(task);
     try {
-      const req = request(task, compact, context);
+      const { request: req, binding } = prepareRequest(task, inventory2, rules, model, limits2.output, compact, context, feedback);
       const preflight = await count(req);
       if (!open3()) return;
       if (!fits(preflight, limits2.input)) {
-        if (!await recoverSplit(task, preflight, compact, context)) unresolved(task, context.length ? "Required context cannot fit within request ceiling" : "Indivisible input cannot fit");
+        if (!await recoverSplit(task, preflight, compact, context, feedback, purpose)) unresolved(task, context.length ? "Required context cannot fit within request ceiling" : "Indivisible input cannot fit");
         return;
       }
       const ticket = ledger.reserve();
@@ -47856,7 +48231,7 @@ async function runReview(options) {
         unresolved(task, "Global token or generation-attempt budget exhausted");
         return;
       }
-      const attempt = { taskId: task.id, preflight };
+      const attempt = { taskId: task.id, preflight, purpose, outcome: "pending", protocolVersion, requestHash: hash2(req), thinkingBudget: req.generationConfig.thinkingConfig.thinkingBudget };
       run.attempts.push(attempt);
       options.onProgress?.(`Reviewing ${task.kind} task, generation ${ledger.snapshot().attempts}/${limits2.attempts}`);
       let generated;
@@ -47866,6 +48241,7 @@ async function runReview(options) {
       } catch (error63) {
         if (!open3()) return;
         ledger.settle(ticket);
+        attempt.outcome = "transport_error";
         attempt.error = message(error63);
         throw error63 instanceof ProviderError ? error63 : new ProviderError("Generation timeout; usage unknown", true);
       }
@@ -47876,8 +48252,10 @@ async function runReview(options) {
       attempt.promptTokenCount = generated.usage?.promptTokenCount;
       attempt.candidatesTokenCount = generated.usage?.candidatesTokenCount;
       attempt.thoughtsTokenCount = generated.usage?.thoughtsTokenCount;
+      attempt.cachedContentTokenCount = generated.usage?.cachedContentTokenCount;
+      attempt.outcome = generated.finishReason === "MAX_TOKENS" ? "truncated" : "blocked";
       if (generated.finishReason === "MAX_TOKENS") {
-        if (await recoverSplit(task, preflight, compact, context)) return;
+        if (await recoverSplit(task, preflight, compact, context, feedback)) return;
         if (!open3()) return;
         if (obligations(task).length > 1) {
           unresolved(task, "Truncated group cannot be split into smaller counted requests");
@@ -47885,7 +48263,7 @@ async function runReview(options) {
         }
         if (allowance.compact) {
           allowance.compact = false;
-          await execute(task, true, context);
+          await execute(task, true, context, "truncation_recovery", feedback);
         } else unresolved(task, "Output truncated after finite recovery");
         return;
       }
@@ -47895,15 +48273,18 @@ async function runReview(options) {
       }
       let response;
       try {
-        response = decode3(generated.text, task);
+        response = decodeCompact(generated.text, task, binding);
       } catch (error63) {
+        attempt.outcome = "invalid";
+        attempt.error = error63 instanceof ResponseError ? error63.message : "Invalid response";
         if (allowance.invalid) {
           allowance.invalid = false;
-          await execute(task, compact, context);
+          await execute(task, compact, context, "invalid_replacement", error63 instanceof ResponseError ? { code: error63.feedback.code } : { code: "shape" });
         } else unresolved(task, `Invalid response after replacement: ${message(error63)}`);
         return;
       }
       if (response.kind === "context_request") {
+        attempt.outcome = "context_request";
         if (!allowance.lookup) {
           unresolved(task, "Repeated required context request; lineage lookup round exhausted");
           return;
@@ -47927,10 +48308,11 @@ async function runReview(options) {
         }
         for (const item of additions.values()) inventory2.evidence.set(item.id, item);
         const expanded = { ...task, evidenceIds: unique([...task.evidenceIds, ...additions.keys()]) };
-        await execute(expanded, compact, results);
+        await execute(expanded, compact, results, "lookup_continuation");
         return;
       }
       if (!open3()) return;
+      attempt.outcome = "result";
       const validated = validateFindings(response.findings, task, inventory2);
       for (const finding of validated.accepted) {
         const id2 = findingId(finding);
@@ -47951,7 +48333,7 @@ async function runReview(options) {
         } catch {
           return;
         }
-        if (open3()) await execute(task, compact, context);
+        if (open3()) await execute(task, compact, context, "transport_retry", feedback);
       } else unresolved(task, message(error63));
     }
   }
@@ -47974,7 +48356,7 @@ async function runReview(options) {
           const task = queue.shift();
           if (!task) return;
           const saved = continuation.get(task.id);
-          await execute(task, saved?.compact, saved?.context);
+          await execute(task, saved?.compact, saved?.context, saved?.purpose ?? "initial", saved?.feedback);
         }
       };
       await Promise.all(Array.from({ length: limits2.concurrency }, worker));
@@ -47994,12 +48376,13 @@ async function runReview(options) {
     run.status = deriveReviewStatus(run);
     run.analysisStatus = deriveReviewStatus({ ...run, superseded: false });
     run.usage = ledger.snapshot();
+    for (const attempt of run.attempts) if (attempt.outcome === "pending") attempt.outcome = "cancelled";
     return structuredClone(run);
   }
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"50a26ef9925c8cb346f4c6ffbd515a96c66038bcc2384eca5b3832df863a1fe7"}` : "development";
+var actionRevision = true ? `sha256:${"18530f04889b486ad8031193b165aaf341814151bb9dd17080795c75bd7fc662"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",
@@ -48131,6 +48514,7 @@ async function main() {
         order,
         authorId,
         fresh,
+        inventory: source,
         notices: [...run.notices, `${run.omissions.length} source exclusions/limitations; see the report artifact.`]
       });
       if (run.publication.superseded) {

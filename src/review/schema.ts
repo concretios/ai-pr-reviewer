@@ -23,10 +23,17 @@ export const TaskResponseSchema = z.discriminatedUnion('kind', [
 export type Finding = z.infer<typeof FindingSchema>;
 export type LookupRequest = z.infer<typeof LookupSchema>;
 export type TaskResponse = z.infer<typeof TaskResponseSchema>;
+export const CompactResponseSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ protocolVersion: z.literal('compact-v1'), requestId: id,
+    kind: z.literal('context_request'), requests: z.array(LookupSchema).min(1).max(4) }),
+  z.strictObject({ protocolVersion: z.literal('compact-v1'), requestId: id, kind: z.literal('result'),
+    reviewedIds: z.array(id), unresolved: z.array(z.strictObject({ id, reason: explanation })),
+    findings: z.array(FindingSchema).max(100) }),
+]);
 // Nested maxItems constraints make Gemini reject this schema with HTTP 400.
 // They remain mandatory in TaskResponseSchema; omit only the generation hints.
 // Gemini does not enforce JSON Schema const, so encode discriminator literals as enums.
-export const wireSchema = z.toJSONSchema(TaskResponseSchema, {
+export const wireSchema = z.toJSONSchema(CompactResponseSchema, {
   target: 'draft-7',
   override: ({ jsonSchema }) => {
     delete jsonSchema.maxItems;

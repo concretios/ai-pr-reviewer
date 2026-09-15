@@ -19,10 +19,11 @@ export function summarizeUsage(analysis: Analysis, model = ''): UsageReport {
   model = model.replace(/^models\//, '');
   const attempts = Math.max(analysis.usage.attempts, analysis.attempts.length);
   let reported = 0; let components = 0; let priced = 0; let total = 0; let input = 0; let output = 0; let cost = 0;
-  let thoughts = 0; let thoughtsReported = 0;
+  let thoughts = 0; let thoughtsReported = 0; let cached = 0; let cacheReported = 0;
   // Count every generation, even malformed/blocked/truncated responses and retries.
   // Preflight counts and admission reservations are never treated as billed usage.
   for (const attempt of analysis.attempts) {
+    if (tokenCount(attempt.cachedContentTokenCount) && tokenCount(attempt.promptTokenCount) && attempt.cachedContentTokenCount <= attempt.promptTokenCount) { cached += attempt.cachedContentTokenCount; cacheReported++; }
     if (tokenCount(attempt.thoughtsTokenCount)) { thoughts += attempt.thoughtsTokenCount; thoughtsReported++; }
     if (!tokenCount(attempt.totalTokenCount)) continue;
     reported++; total += attempt.totalTokenCount;
@@ -40,6 +41,7 @@ export function summarizeUsage(analysis: Analysis, model = ''): UsageReport {
     model, generationAttempts: attempts, reportedAttempts: reported, unreportedAttempts: Math.max(0, attempts - reported),
     totalTokens: reported || !attempts ? total : null,
     inputTokens: components || !attempts ? input : null, outputTokens: components || !attempts ? output : null,
+    cachedTokens: cacheReported || !attempts ? cached : null, cacheReportedAttempts: cacheReported,
     componentAttempts: components, thoughtsTokens: thoughtsReported || !attempts ? thoughts : null, thoughtsReportedAttempts: thoughtsReported,
     estimatedCostUsd: supported && (priced || !attempts) ? cost : null, pricedAttempts: priced,
     pricingChecked, pricingSource,
@@ -61,6 +63,8 @@ export function usageText(analysis: Analysis, model?: string): string {
     + `| Input tokens | ${number(usage.inputTokens)} |\n`
     + `| Output tokens, including thinking | ${number(usage.outputTokens)} |\n`
     + `| Thinking tokens (included above, when reported) | ${number(usage.thoughtsTokens)} |\n`
+    + `| Cached input tokens (reported subset, included in input) | ${number(usage.cachedTokens ?? null)} |\n`
+    + `| Attempts reporting cache metadata | ${usage.cacheReportedAttempts}/${usage.generationAttempts} |\n`
     + `| Attempts without total usage | ${usage.unreportedAttempts} |\n`
     + `| Estimated API cost | ${cost} |\n\n`
     + `Usage totals cover ${usage.reportedAttempts}/${usage.generationAttempts} attempts; input/output covers ${usage.componentAttempts}/${usage.generationAttempts}; thinking covers ${usage.thoughtsReportedAttempts}/${usage.generationAttempts}. Unknown usage is excluded, not zero.\n\n`

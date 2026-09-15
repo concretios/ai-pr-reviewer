@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { ProviderError, type Provider, type Request, type Generation } from './provider.js';
 const usageSchema = z.object({ totalTokenCount: z.number().int().nonnegative().optional(), promptTokenCount: z.number().int().nonnegative().optional(),
-  candidatesTokenCount: z.number().int().nonnegative().optional(), thoughtsTokenCount: z.number().int().nonnegative().optional() });
+  candidatesTokenCount: z.number().int().nonnegative().optional(), thoughtsTokenCount: z.number().int().nonnegative().optional(), cachedContentTokenCount: z.number().int().nonnegative().optional() });
 const responseSchema = z.object({ usageMetadata: usageSchema.optional(), promptFeedback: z.object({ blockReason: z.string().optional() }).optional(),
   candidates: z.array(z.object({ finishReason: z.string().optional(), content: z.object({ parts: z.array(z.object({ text: z.string().optional(), thought: z.boolean().optional() })) }).optional() })).optional() });
 

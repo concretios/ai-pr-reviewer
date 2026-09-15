@@ -46,3 +46,16 @@ describe('usage and cost reporting', () => {
     expect(summarizeUsage(run, settings.model).outputTokens).toBe(120);
   });
 });
+
+it('reports cached input separately without repricing or counting it twice', () => {
+  const analysis = emptyAnalysis();
+  analysis.attempts = [{ taskId: 'a', preflight: 1000, promptTokenCount: 1000, totalTokenCount: 2000, cachedContentTokenCount: 800 }];
+  analysis.usage = { attempts: 1, charged: 2000, reserved: 0, unknown: 0 };
+  const summary = summarizeUsage(analysis, 'gemini-2.5-flash');
+  expect(summary.cachedTokens).toBe(800); expect(summary.cacheReportedAttempts).toBe(1);
+  expect(summary.totalTokens).toBe(2000); expect(summary.estimatedCostUsd).toBeCloseTo(0.0028);
+  delete analysis.attempts[0]!.cachedContentTokenCount;
+  expect(summarizeUsage(analysis, 'gemini-2.5-flash').cachedTokens).toBeNull();
+  analysis.attempts[0]!.cachedContentTokenCount = 2000;
+  expect(summarizeUsage(analysis, 'gemini-2.5-flash').cacheReportedAttempts).toBe(0);
+});

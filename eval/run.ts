@@ -49,7 +49,7 @@ const provider: Provider = {
   generateOnce: (request, signal) => generation(async () => {
     if (!mocked) return gemini.generateOnce(request, signal);
     const input = JSON.parse(request.contents[0]!.parts[0]!.text);
-    return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', taskId: input.taskId, items: input.expectedIds.map((id: string) => ({ id, status: 'reviewed', reason: 'Mocked harness test, not model-quality evidence' })), findings: [] }), usage: { totalTokenCount: 100 } };
+    return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', protocolVersion: input.protocolVersion, requestId: input.requestId, reviewedIds: input.expectedIds, unresolved: [], findings: [] }), usage: { totalTokenCount: 100 } };
   }, signal),
 };
 try {

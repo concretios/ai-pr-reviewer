@@ -1,6 +1,34 @@
 import type { Inventory, Task, Finding, Diagnostic } from '../contracts.js';
 import { obligations } from '../contracts.js';
-import { TaskResponseSchema, type TaskResponse } from './schema.js';
+import { CompactResponseSchema, TaskResponseSchema, type TaskResponse } from './schema.js';
+import type { Binding, RepairFeedback } from '../providers/projection.js';
+
+export class ResponseError extends Error {
+  constructor(readonly feedback: RepairFeedback) { super(`Invalid response: ${feedback.code}`); }
+}
+export function decodeCompact(text: string, task: Task, binding: Binding): TaskResponse {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { throw new ResponseError({ code: 'json' }); }
+  if (typeof value !== 'object' || !value || !('kind' in value) || !['result', 'context_request'].includes(String(value.kind))) throw new ResponseError({ code: 'kind' });
+  const parsed = CompactResponseSchema.safeParse(value);
+  if (!parsed.success) throw new ResponseError({ code: 'shape' });
+  const response = parsed.data;
+  if (response.requestId !== binding.requestId || task.id !== binding.taskId) throw new ResponseError({ code: 'identity' });
+  if (response.kind === 'context_request') return { kind: response.kind, taskId: task.id, requests: response.requests };
+  const actual = [...response.reviewedIds, ...response.unresolved.map(i => i.id)];
+  if (actual.length !== binding.expectedIds.length || unique(actual).length !== actual.length || actual.some(id => !binding.expectedIds.includes(id))) {
+    throw new ResponseError({ code: 'completion', expectedIds: binding.expectedIds });
+  }
+  const translate = (map: Map<string, string>, id: string): string => {
+    const stable = map.get(id); if (!stable) throw new ResponseError({ code: 'reference' }); return stable;
+  };
+  const ids = task.kind === 'review' ? binding.atoms : binding.relations;
+  const findings = response.findings.map(f => ({ ...f, introducedByAtomIds: f.introducedByAtomIds.map(id => translate(binding.atoms, id)),
+    evidenceIds: f.evidenceIds.map(id => translate(binding.evidence, id)) }));
+  return decode(JSON.stringify({ kind: 'result', taskId: task.id,
+    items: [...response.reviewedIds.map(id => ({ id: translate(ids, id), status: 'reviewed', reason: 'Completion metadata: model marked this obligation reviewed.' })),
+      ...response.unresolved.map(item => ({ ...item, id: translate(ids, item.id), status: 'unresolved' }))], findings }), task);
+}
 import { hash, unique } from '../util.js';
 
 export function decode(text: string, task: Task): TaskResponse {

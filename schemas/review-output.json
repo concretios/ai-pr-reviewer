@@ -3,16 +3,22 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "enum": [
+            "compact-v1"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "kind": {
           "type": "string",
           "enum": [
             "context_request"
           ]
-        },
-        "taskId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
         },
         "requests": {
           "minItems": 1,
@@ -94,8 +100,9 @@
         }
       },
       "required": [
+        "protocolVersion",
+        "requestId",
         "kind",
-        "taskId",
         "requests"
       ],
       "additionalProperties": false
@@ -103,18 +110,32 @@
     {
       "type": "object",
       "properties": {
+        "protocolVersion": {
+          "type": "string",
+          "enum": [
+            "compact-v1"
+          ]
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "kind": {
           "type": "string",
           "enum": [
             "result"
           ]
         },
-        "taskId": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 200
+        "reviewedIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
         },
-        "items": {
+        "unresolved": {
           "type": "array",
           "items": {
             "type": "object",
@@ -124,13 +145,6 @@
                 "minLength": 1,
                 "maxLength": 200
               },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "reviewed",
-                  "unresolved"
-                ]
-              },
               "reason": {
                 "type": "string",
                 "minLength": 1,
@@ -139,7 +153,6 @@
             },
             "required": [
               "id",
-              "status",
               "reason"
             ],
             "additionalProperties": false
@@ -248,9 +261,11 @@
         }
       },
       "required": [
+        "protocolVersion",
+        "requestId",
         "kind",
-        "taskId",
-        "items",
+        "reviewedIds",
+        "unresolved",
         "findings"
       ],
       "additionalProperties": false
