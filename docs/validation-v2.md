@@ -52,6 +52,9 @@ unknown models, and consistency between PR comments and artifact reports. The ex
 - The 30 authored fixtures are pinned and labeled but require human benchmark review for representativeness. Twenty are held out with three trials per variant in the release workflow.
 - Workflow creation timestamps may require permissions excluded by the minimum-permission consumer contract. The implemented conservative ordering fallback is documented in architecture.md.
 - The archived v1 standalone mock has a pre-existing review-list response-shape error. It remains frozen; the maintained regression test uses a correct transport mock and reproduces the v1 loss of persistent finding details when inline posting fails.
-- `@v2` remains an illustrative consumer reference until a reviewed release exists. No v2 release tag has been published; the Trace pilot uses an exact action commit.
+- `@v2` remains an illustrative consumer reference until a reviewed release exists.
+  No v2 release tag has been published; the Trace pilot uses an exact action commit.
+  Stable consumers will use the immutable release's exact SHA with a same-line
+  semantic-version comment under the [release policy](releases.md).
 
 The pre-existing `.concret.io/` expert files and `docs/why-we-built-this.md` were preserved.

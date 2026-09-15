@@ -7,7 +7,10 @@ v2 replaces the composite Bash runtime with a bundled Node 24 action. Consumers 
 1. Remove `max_files`, `max_diff_size`, and `context_depth`. They now produce migration errors. v2 inventories eligible text and uses bounded adaptive batches. `max_files` is not a per-batch setting. Use maintainer-requested extended mode for a larger fresh budget.
 2. Remove `submit_review_verdict: true`. Only `false` is accepted for migration; v2 always posts advisory COMMENT reviews.
 3. Use the new consumer workflow's internal-PR gates, default-branch manual dispatch, normalized publication concurrency, and `always()` artifact upload.
-4. Pin an audited v2 release SHA after pilot/evaluation gates pass. The documented `@v2` reference is illustrative until release.
+4. Pin an audited immutable v2 release by its full commit SHA and add the semantic
+   version as a same-line comment, for example
+   `concretios/ai-pr-reviewer@<full-release-sha> # v2.0.0`. The documented release
+   is illustrative until v2 is published. See [the release policy](releases.md).
 
 ## Intentional behavior changes
 
@@ -34,4 +37,13 @@ rules_paths:
 
 ## Pilot before release
 
-Run automatic mocks and a manual dry-run first. Inspect coverage, unresolved obligations, source/rule manifest, and delivery ledger. A live Trace installation and paid model comparison have not been performed by the implementation itself. See [evaluation instructions](../eval/README.md).
+Run automatic mocks and a manual dry-run first. Inspect coverage, unresolved
+obligations, source/rule manifest, and delivery ledger. Recent Trace pilot evidence
+is recorded in the [incident guide](gemini-troubleshooting.md), but each release
+candidate still requires the checks in the [release policy](releases.md). See the
+[evaluation instructions](../eval/README.md).
+
+After release, enable weekly Dependabot updates for the `github-actions` ecosystem
+in consumer repositories. Keep updates reviewable and do not auto-merge this action.
+The floating major `@v2` channel is opt-in and must not be used in high-trust
+`pull_request_target` workflows.

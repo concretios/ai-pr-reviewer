@@ -11,6 +11,7 @@ The frozen Bash action in `eval/baseline-v1/` is comparison material, not produc
 | Gemini, prompts, schema, generation or model selection | [Gemini incident and regression guide](docs/gemini-troubleshooting.md) |
 | Usage, budget, pricing or reporting | [Usage and cost contract](docs/usage-and-cost.md) |
 | Action inputs or consumer workflows | [Migration guide](docs/migration-v2.md) |
+| Releases, tags or consumer action pins | [Release and pin policy](docs/releases.md) |
 | Evaluation or claims of review quality | [Evaluation protocol](eval/README.md), [validation evidence](docs/validation-v2.md) |
 
 ## Preserve these contracts
@@ -29,10 +30,15 @@ The frozen Bash action in `eval/baseline-v1/` is comparison material, not produc
 - Deduplicate inline findings individually on the captured commit. Required main-comment preparation and finalization must be reconciled; no blind recreate after uncertain writes.
 - Preserve trusted-author markers, ambiguous-write reconciliation and freshness checks between publication stages.
 - Never discard all provider error detail or expose credentials/raw error envelopes. Keep diagnostics bounded and redacted.
+- Use full SHAs for pilots. Stable production consumers use the exact immutable release SHA with a same-line semantic-version comment. Floating major tags are opt-in and forbidden for high-trust workflows such as `pull_request_target`.
 
 ## Verification and delivery
 
 Use Node 24+. Run `npm run check`, `npm test`, and `npm run build`; use `npm ci` when dependencies change. Commit `dist/`, generated schema and any lockfile changes with their source. CI checks for bundle/schema drift.
+
+Do not publish or move release tags from a feature branch. Follow the release gate in
+[docs/releases.md](docs/releases.md), including immutable-release verification and
+consumer rollback records.
 
 Mocks establish our behavior, not Gemini compatibility. For schema, provider, prompt or model changes, also run `npm run smoke:gemini -- --model <target-model>` with an authorized key, then a representative authorized pilot. The smoke makes paid requests and never publishes. If live validation cannot run, state that limit; never call mocked success a live pass. A different model or key is not proof for the target model/key.
 

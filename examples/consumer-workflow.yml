@@ -43,7 +43,8 @@ jobs:
       cancel-in-progress: false
       queue: max
     steps:
-      # v2 is illustrative until release. Replace with the audited v2 release SHA.
+      # v2 is a development placeholder. In production use the immutable release's
+      # full SHA with a same-line version comment; see docs/releases.md.
       - uses: concretios/ai-pr-reviewer@v2
         id: review
         with:

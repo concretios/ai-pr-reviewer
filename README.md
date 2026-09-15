@@ -2,14 +2,17 @@
 
 Advisory pull-request reviews using Gemini 2.5 Flash. The action captures committed source, batches work within explicit budgets, and persists every accepted concern in one main PR comment with linked overflow when necessary.
 
-**v2 is under development.** The example `@v2` reference is illustrative until release. Use an audited commit SHA for a pilot. Model quality and release acceptance still require the manual evaluation described below.
+**v2 is under development.** The release example below is illustrative until an
+immutable v2 release is published. Use an audited full commit SHA for a pilot.
+Model quality and release acceptance still require the manual evaluation described
+below.
 
 ## Install
 
 Add a `GEMINI_API_KEY` repository secret, then copy [the consumer workflow](examples/consumer-workflow.yml). No checkout or package installation is needed in the consumer job.
 
 ```yaml
-- uses: concretios/ai-pr-reviewer@v2 # Replace with an audited release SHA.
+- uses: concretios/ai-pr-reviewer@0123456789abcdef0123456789abcdef01234567 # v2.0.0
   id: review
   with:
     github_token: ${{ github.token }}
@@ -17,6 +20,11 @@ Add a `GEMINI_API_KEY` repository secret, then copy [the consumer workflow](exam
 ```
 
 The job requires `contents: read` and `pull-requests: write`; the examples also grant `actions: read` for result ordering. The example includes authorization gates, publication concurrency, manual dry runs, and seven-day artifact retention. An [optional comment workflow](examples/comment-workflow.yml) supports exact `@dr-concretio review` and `@dr-concretio extend` commands.
+
+The production default is the exact commit SHA of an immutable semantic release,
+with the version in a same-line comment for readability and Dependabot updates. A
+floating `@v2` tag is opt-in for consumers that accept automatic compatible updates
+and is unsuitable for high-trust workflows. See the [release and pin policy](docs/releases.md).
 
 Fork and Dependabot PRs are excluded. Manual dispatch must use the default branch and a current repository maintainer. Rerun actors are also checked. Extended mode starts a fresh invocation with a larger budget.
 
