@@ -25,8 +25,15 @@ export type LookupRequest = z.infer<typeof LookupSchema>;
 export type TaskResponse = z.infer<typeof TaskResponseSchema>;
 // Nested maxItems constraints make Gemini reject this schema with HTTP 400.
 // They remain mandatory in TaskResponseSchema; omit only the generation hints.
+// Gemini does not enforce JSON Schema const, so encode discriminator literals as enums.
 export const wireSchema = z.toJSONSchema(TaskResponseSchema, {
   target: 'draft-7',
-  override: ({ jsonSchema }) => { delete jsonSchema.maxItems; },
+  override: ({ jsonSchema }) => {
+    delete jsonSchema.maxItems;
+    if (jsonSchema.const !== undefined) {
+      jsonSchema.enum = [jsonSchema.const];
+      delete jsonSchema.const;
+    }
+  },
 });
 delete wireSchema.$schema;

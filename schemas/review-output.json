@@ -5,7 +5,9 @@
       "properties": {
         "kind": {
           "type": "string",
-          "const": "context_request"
+          "enum": [
+            "context_request"
+          ]
         },
         "taskId": {
           "type": "string",
@@ -22,7 +24,9 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "const": "range"
+                    "enum": [
+                      "range"
+                    ]
                   },
                   "path": {
                     "type": "string",
@@ -61,7 +65,9 @@
                 "properties": {
                   "kind": {
                     "type": "string",
-                    "const": "search"
+                    "enum": [
+                      "search"
+                    ]
                   },
                   "literal": {
                     "type": "string",
@@ -99,7 +105,9 @@
       "properties": {
         "kind": {
           "type": "string",
-          "const": "result"
+          "enum": [
+            "result"
+          ]
         },
         "taskId": {
           "type": "string",

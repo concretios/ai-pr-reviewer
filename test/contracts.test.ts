@@ -62,6 +62,14 @@ describe('wire contract and evidence', () => {
     const lookup = { kind: 'search', literal: 'symbol', side: 'RIGHT' };
     expect(TaskResponseSchema.safeParse({ kind: 'context_request', taskId: 'probe', requests: Array(5).fill(lookup) }).success).toBe(false);
   });
+  it('constrains every response and lookup discriminator using supported enums', () => {
+    const schema = JSON.stringify(wireSchema);
+    expect(schema).not.toContain('"const"');
+    for (const kind of ['context_request', 'result', 'range', 'search']) {
+      expect(schema).toContain(`"enum":["${kind}"]`);
+    }
+    expect(TaskResponseSchema.safeParse({ kind: 'review', taskId: 'probe', items: [], findings: [] }).success).toBe(false);
+  });
   it('retains useful HTTP diagnostics while redacting credentials and control characters', async () => {
     const transport = vi.fn(async () => new Response(JSON.stringify({ error: {
       status: 'INVALID_ARGUMENT', message: 'Invalid response schema\nkey=test-key\u001b[31m',
