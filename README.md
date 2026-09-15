@@ -1,6 +1,6 @@
 # AI PR Reviewer v2
 
-Advisory pull-request reviews using Gemini 2.5 Flash. The action captures committed source, batches work within explicit budgets, and persists every accepted concern in PR detail comments.
+Advisory pull-request reviews using Gemini 2.5 Flash. The action captures committed source, batches work within explicit budgets, and persists every accepted concern in one main PR comment with linked overflow when necessary.
 
 **v2 is under development.** The example `@v2` reference is illustrative until release. Use an audited commit SHA for a pilot. Model quality and release acceptance still require the manual evaluation described below.
 
@@ -16,7 +16,7 @@ Add a `GEMINI_API_KEY` repository secret, then copy [the consumer workflow](exam
     gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
 ```
 
-The job requires `contents: read` and `pull-requests: write`. The example includes authorization gates, publication concurrency, manual dry runs, and seven-day artifact retention. An [optional comment workflow](examples/comment-workflow.yml) supports exact `@dr-concretio review` and `@dr-concretio extend` commands.
+The job requires `contents: read` and `pull-requests: write`; the examples also grant `actions: read` for result ordering. The example includes authorization gates, publication concurrency, manual dry runs, and seven-day artifact retention. An [optional comment workflow](examples/comment-workflow.yml) supports exact `@dr-concretio review` and `@dr-concretio extend` commands.
 
 Fork and Dependabot PRs are excluded. Manual dispatch must use the default branch and a current repository maintainer. Rerun actors are also checked. Extended mode starts a fresh invocation with a larger budget.
 
@@ -30,7 +30,7 @@ Fork and Dependabot PRs are excluded. Manual dispatch must use the default branc
 
 Findings are model-reported concerns, not verified defects. Only advisory `COMMENT` reviews are posted. Finding severity and count never determine the exit code.
 
-Every accepted concern, including low-severity and unanchored concerns, is retained in required detail pages. Inline posting is best effort. Missing or uncertain required delivery fails the action independently of analysis completion.
+Every accepted concern, including low-severity and unanchored concerns, is retained in the required main comment or linked overflow pages. Inline posting is best effort. Missing or uncertain required delivery fails the action independently of analysis completion.
 
 ## Inputs
 
@@ -127,10 +127,16 @@ A deliberate paid run uses the manual [evaluation workflow](.github/workflows/ev
 
 The action runs on Node 24. Self-hosted runners must support the Node 24 JavaScript action runtime and have Git installed. Verify runner and release compatibility before installation. The workflow examples use the current `v7` action families; pin their reviewed SHAs for production.
 
-GitHub workflow creation time is not guaranteed to be readable with the minimum permissions. When it cannot be read, an attempt does not overwrite an existing completed/latest record whose relative age is unknown. Its own result appears in a separate section. See [publication ordering](docs/architecture.md#publication-ordering).
+GitHub workflow creation time may be unavailable without `actions: read`. The main comment labels an unordered result as this attempt and collapses distinct historical records. Existing completed results are preserved; old timestamps are recovered when permissions permit. See [publication ordering](docs/architecture.md#publication-ordering).
 
 No PR code, tests, hooks, text-conversion filters, submodules, or arbitrary commands are executed. Context selection is bounded and one-hop; unsupported source and missing evidence remain visible. v1 is frozen under `eval/baseline-v1` for comparison and existing v1 releases remain usable.
 
 ## License
 
 Copyright 2026 [Concret.io](https://concret.io). [Apache License 2.0](LICENSE).
+
+## Lower-overhead review and publication
+
+Provider requests carry source blocks once, exact evidence references and request-bound short IDs. Compact completion lists replace repetitive success explanations; substantive findings and unresolved reasons remain. Repair feedback uses the existing finite allowance. Adaptive thinking and execution budgets are unchanged. Cache hits are recorded separately; savings are not guaranteed.
+
+Dr. Concret.io updates one main diagnosis with coverage and this-run cost. Full findings and limitations are collapsed; oversized reports use linked overflow pages. Line/file comments are best effort and deduplicated per finding on the same commit. See the [combined implementation contract](docs/pr-comment-publication-plan.md).

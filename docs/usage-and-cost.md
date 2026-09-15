@@ -65,3 +65,15 @@ Verify exact model rates and update their source/date when adding or changing th
 If tools, modalities, caching charges, batch, priority or flex service are added,
 revisit the calculation before claiming those requests are priced. Never silently
 apply text-standard rates to a different billing mode.
+
+## Attempt diagnostics and automatic cache metadata
+
+Reports retain optional cachedContentTokenCount and each attempt's purpose, outcome,
+protocol version, request hash and effective thinking budget. Initial work, lookup
+continuations, invalid replacements, transport retries and truncation recovery are
+distinct. Required lookup continuation is not classified as waste.
+
+Cached tokens are a subset of input, not additional consumption. Missing cache
+metadata is unknown; counts exceeding the reported prompt are excluded. The price
+formula remains before cache discounts. No explicit cache or storage fee is created.
+Ordered base rules form a stable prefix, but automatic cache hits are not guaranteed.

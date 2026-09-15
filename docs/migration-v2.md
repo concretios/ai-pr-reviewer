@@ -15,7 +15,7 @@ v2 replaces the composite Bash runtime with a bundled Node 24 action. Consumers 
 - Rule Markdown comes from the captured base. Root discovery covers `review-rules.md`, `CLAUDE.md`, `AGENTS.md`, and `GEMINI.md`. Add other Markdown paths with `rules_paths`. Files/directories apply globally in supplied order. MDC, TXT, and other agent dialects are not interpreted and are reported when configured.
 - PR edits to rules/configuration are evidence, not governing instructions. Missing rules no longer generate starter-file suggestions.
 - `bot_name`, default `dr-concretio`, is stable across workflow display names. Automatic, manual, and comment triggers share the same publication namespace. Old v1 comments/reviews are not dismissed or silently repurposed.
-- All accepted concerns appear in persistent detail pages, including below-threshold and unanchored findings. In v1, enabling inline comments omitted full concern detail from the summary; a failed inline review could lose it. v2 treats detail pages and summary as mandatory.
+- All accepted concerns appear in the main comment or required overflow pages, including below-threshold and unanchored findings. In v1, enabling inline comments omitted full concern detail from the summary; a failed inline review could lose it. v2 treats the main comment and any overflow pages as mandatory.
 - Findings never block merging or determine action failure. Unavailable analysis, invalid configuration, internal failures, and missing/uncertain required publication do fail, with reports retained. Partial analysis succeeds with explicit coverage limitations.
 - Extended mode does not resume old analysis, coverage, charges, or task state.
 

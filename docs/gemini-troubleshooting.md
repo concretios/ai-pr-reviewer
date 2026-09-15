@@ -47,8 +47,8 @@ correctness was not independently adjudicated.
    npm run smoke:gemini -- --model gemini-2.5-flash
    ```
 
-   This makes one real count call and one generation using the production adapter,
-   schema, prompts and output settings. It validates STOP, response kind, exact IDs
+   This makes two real count calls and two generations (result and context-request cases) using the production adapter,
+   schema, prompts and output settings. It validates STOP, response kind, request binding, exact IDs
    and evidence on synthetic source. It never reads a PR or publishes. A smoke is
    a contract check, not a quality benchmark or large-PR coverage check.
 4. Run an authorized representative PR pilot and inspect its artifact, including
@@ -67,7 +67,7 @@ Start with the failed step and `report.json`, then classify the boundary:
 | 429/5xx | Retry classification, delay, finite allowance and unknown usage. |
 | STOP but unavailable | Decode diagnostics, response kind, exact IDs and evidence validation. |
 | Partial | Specific unresolved reasons. Extra budget cannot fix indivisible input or an invalid response contract. |
-| Publication failure | Required detail/summary operations, permissions, freshness and reconciliation. Preserve valid analysis. |
+| Publication failure | Required main-comment/overflow operations, permissions, freshness and reconciliation. Preserve valid analysis. |
 
 Re-running an old GitHub job retains its original workflow revision. Update the
 action SHA in the PR workflow and trigger a fresh run to test a fix. Manual dispatch
@@ -76,3 +76,26 @@ the manual run to use that branch. Closed PRs require diagnostic replay.
 
 Keep private artifacts under ignored `eval-results/`. Record only necessary aggregate
 evidence and links in public docs. See [usage and cost](usage-and-cost.md) for accounting.
+
+## 2026-09-15: compact requests and publication consolidation
+
+PR #32 exposed repeated finding text in a separate detail comment, an obsolete v1
+error, and an old unavailable result labeled latest when timestamps were missing.
+The publisher now reuses one main comment, collapses fallback/history, deduplicates
+individual inline findings and backfills timestamps when actions: read becomes
+available. Required preparation/finalization and optional inline writes remain
+separate. Never hide old details until the replacement has been verified.
+
+Request projection removes duplicate source only after exact reconstruction. A
+versioned request-bound compact protocol removes repetitive success explanations.
+Structured replacement feedback retains the old single-retry allowance. Tests cover
+source gaps/conflicts, Unicode/CRLF, wrong namespaces, stale bindings, finite recovery,
+unknown/cache usage, reordered batches, lost writes, file fallback and old state.
+
+The review prompt explicitly checks whether the new code introduces the claimed
+problem. Two historical HistoryApp comments described improvements as regressions;
+structural evidence validation alone cannot determine that causal truth. Do not
+claim automatic semantic verification from prompt instructions or passing mocks.
+
+Live verification of this revision: pending. No cost or quality improvement claim
+is established by these implementation checks.
