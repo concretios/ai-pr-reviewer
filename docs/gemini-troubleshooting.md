@@ -111,6 +111,31 @@ introduced failure, existing issue, improvement, preference or insufficient evid
 Only introduced failures enter publication; other classifications become diagnostics
 without a new model call or retry. Schema field descriptions demand an actual new
 failure under a supported trigger. Classification remains model-reported, not an
-independent semantic proof. Wider rollout is held until repeat functional review.
+independent semantic proof. The failed quality gate held wider rollout until repeat
+functional review.
 
-Repeat verification of the tightened candidate contract: pending.
+The corrected [Trace pilot](https://github.com/concretios/trace/actions/runs/34966583395)
+verified action `b2925fc25f964faab9ee0d9a2bcf15276316f96f` on the actual Gemini
+2.5 Flash key. Both result/context smoke checks passed. The normal review published
+one main diagnosis and one inline concern, with 196/198 changed ranges and all
+4 cross-file checks reviewed. Two ranges remained unresolved for missing context;
+the diagnosis explicitly says the check-up is incomplete.
+
+All 10 generations reported usage, including one malformed-completion replacement
+that recovered: 214,650 input plus 37,859 output equals 252,509 total tokens.
+Thinking contributed 35,250 of the output tokens. Reported cached input was 28,267
+across five attempts. The estimate was $0.1590425 before cache discounts, with no
+unknown total usage. These values exclude the separate synthetic smoke checks.
+
+The earlier cosmetic and improvement comments did not recur. One medium advisory
+concern remained about a changed billable default; its business impact still needs
+author judgment. This inspection is not independent proof of the finding or a
+statistical quality improvement. Changed heads and task partitions preclude a causal
+savings claim. No benchmark campaign was run.
+
+After checking the final main comment retained its accepted finding and report
+link, three obsolete top-level bot error/detail comments were minimized as outdated.
+Their text remains available; line discussions and resolved threads were preserved.
+Consumer migration PRs use the same audited action SHA and retain previous pins for
+rollback. A complete workflow revert is required for v1 consumers because inputs
+and event handling also changed.

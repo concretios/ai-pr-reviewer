@@ -58,7 +58,9 @@ The frozen v1 evaluator remains comparison material.
 - Check causal direction in the existing model generation: before/after behavior,
   concrete trigger, guards/callers/tests, and actual new consequence. Reject speculative
   visual regressions, generic missing tests, preferences and improvements described
-  as bugs. Structural validation does not prove a model's causal claim.
+  as bugs. Require an explicit candidate classification in the same generation;
+  only introduced failures reach publication, while other classifications become
+  diagnostics. Structural validation does not prove a model's causal claim.
 
 ## Verification and rollout
 
