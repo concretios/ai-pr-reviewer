@@ -77,3 +77,21 @@ Cached tokens are a subset of input, not additional consumption. Missing cache
 metadata is unknown; counts exceeding the reported prompt are excluded. The price
 formula remains before cache discounts. No explicit cache or storage fee is created.
 Ordered base rules form a stable prefix, but automatic cache hits are not guaranteed.
+
+## PR presentation
+
+The main PR comment uses a compact Dr. Concret.io footer with model, total tokens
+including thinking, and estimated USD cost to four decimal places. It appears after
+the workflow link and before expandable sections. The estimate is before cache
+discounts and covers this invocation only.
+
+The expandable Usage breakdown shows input, output including thinking, the thinking
+subtotal and cached input. Cached tokens are already included in input. Missing
+values say Not reported; partial component values say reported subset. Only missing
+total usage or unavailable/incomplete pricing adds a short warning to the footer,
+with attempt coverage. Partial totals say reported tokens and costs say Partial
+estimate. Zero attempts remain zero; all-unknown usage is unavailable.
+
+Keep admission reservations, detailed attempt coverage and pricing diagnostics in
+artifacts. Do not reuse the diagnostic artifact renderer in PR comments. Presentation
+changes require local rendering and publication checks, not paid model calls.

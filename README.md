@@ -80,11 +80,11 @@ Reports include the source manifest, findings, coverage obligations, omissions, 
 
 ## Token usage and cost
 
-The PR summary and Actions report show total known generation tokens, input,
-output including thinking, unknown-usage attempts, and estimated USD cost for
-**this run**, including retries and invalid model responses. The estimate uses dated
-standard paid-tier rates; missing usage is excluded and marked incomplete. It is
-not an invoice. Admission reservations are shown separately and are never priced.
+The PR summary uses a compact footer with model, total tokens including thinking,
+and estimated USD cost for **this run**. A short expandable breakdown shows input,
+output, thinking and cached input. Missing usage is marked incomplete. Estimates
+are before cache discounts. The detailed Actions report retains attempt coverage,
+pricing diagnostics and admission reservations, which are never priced.
 
 Verified rates are bundled for Gemini 2.5 Flash, Flash-Lite and Pro. Other model
 names show usage with an unavailable cost estimate. See [usage and cost](docs/usage-and-cost.md)

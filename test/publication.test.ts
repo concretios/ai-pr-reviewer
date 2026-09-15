@@ -41,7 +41,15 @@ describe('persistent delivery contract', () => {
     s.options.analysis.attempts = [{ taskId: 'test', preflight: 1000, promptTokenCount: 1000, totalTokenCount: 2000 }];
     s.options.analysis.usage = { attempts: 1, charged: 2000, reserved: 0, unknown: 0 };
     const publication = await publish(s.options);
-    expect(s.comments.at(-1)!.body).toContain('$0.0028 USD');
+    const body = s.comments.at(-1)!.body;
+    expect(body).toContain('2,000 tokens · Estimated cost: $0.0028');
+    expect(body.match(/<sub>🩺 Dr\. Concret\.io/g)).toHaveLength(1);
+    expect(body).toContain('<summary>Usage breakdown</summary>');
+    expect(body).not.toContain('Admission budget');
+    expect(body).not.toContain('Usage totals cover');
+    expect(body.indexOf('[Workflow and report]')).toBeLessThan(body.indexOf('<sub>'));
+    expect(body.indexOf('<sub>')).toBeLessThan(body.indexOf('<details>'));
+    expect(s.comments).toHaveLength(1);
     expect(renderReport(s.final(publication))).toContain('$0.0028 USD');
   });
   it('accepted POST plus lost response reconciles without duplicate writes', async () => {

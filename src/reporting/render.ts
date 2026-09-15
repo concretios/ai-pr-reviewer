@@ -1,7 +1,7 @@
 import type { Analysis, Evidence, FinalizedRun, Publication, ReviewStatus, RunOrder } from '../contracts.js';
 import type { Finding } from '../review/schema.js';
 import { findingId } from '../review/validate.js';
-import { summarizeUsage, usageText } from './usage.js';
+import { usageText } from './usage.js';
 export const safe = (text: string): string => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/@/g, '&#64;');
 export function renderFinding(finding: Finding, source?: { repositoryUrl: string; evidence: Map<string, Evidence> }): string {
   const links = source ? finding.evidenceIds.map(id => {
@@ -16,14 +16,11 @@ export function diagnosis(analysis: Analysis): string {
   const concerns = analysis.findings.length ? 'Concerns reported.' : 'No actionable concerns reported in the examined scope.';
   return concerns + (analysis.analysisStatus !== 'complete' ? ' Check-up incomplete.' : '');
 }
-export function mainResult(analysis: Analysis, sha: string, model: string): string {
-  const usage = summarizeUsage(analysis, model);
+export function mainResult(analysis: Analysis, sha: string): string {
   const counts = (['critical', 'high', 'medium', 'low'] as const).map(level => {
     const n = analysis.findings.filter(f => f.severity === level).length; return n ? `${n} ${level}` : '';
   }).filter(Boolean).join(' · ') || '0 concerns';
-  const cost = usage.estimatedCostUsd === null ? 'cost unavailable' : `estimated $${usage.estimatedCostUsd.toFixed(4)} USD before cache discounts`;
-  const incomplete = usage.pricedAttempts < usage.generationAttempts ? ` (incomplete: ${usage.pricedAttempts}/${usage.generationAttempts} attempts priced)` : '';
-  return `**Diagnosis: ${diagnosis(analysis)}**\n\n${counts}\n\nReviewed commit: ${sha}\n\nCoverage: ${coverage(analysis)}\n\nThis run: ${usage.totalTokens === null ? 'unknown' : usage.totalTokens.toLocaleString('en-US')} known tokens · ${cost}${incomplete}\n\nFindings are advisory model-reported concerns.`;
+  return `**Diagnosis: ${diagnosis(analysis)}**\n\n${counts}\n\nReviewed commit: ${sha}\n\nCoverage: ${coverage(analysis)}\n\nFindings are advisory model-reported concerns.`;
 }
 export function detailPages(findings: Finding[], maxBytes = 47000): Array<{ text: string; findingIds: string[] }> {
   const pages: Array<{ text: string; findingIds: string[] }> = [];

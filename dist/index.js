@@ -46984,6 +46984,34 @@ Model: ${usage.model || "not captured"}. [Rates checked ${pricingChecked}](${pri
 Admission budget charged: ${number4(analysis.usage.charged)} tokens; unknown-usage reservations: ${analysis.usage.unknown}. This is a scheduling ledger, not token consumption or dollars.
 `;
 }
+function prUsageFooter(analysis, model) {
+  const u = summarizeUsage(analysis, model);
+  const names = { "gemini-2.5-flash": "Gemini 2.5 Flash", "gemini-2.5-flash-lite": "Gemini 2.5 Flash-Lite", "gemini-2.5-pro": "Gemini 2.5 Pro" };
+  const name = (names[u.model] ?? (u.model || "Model not reported")).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/@/g, "&#64;");
+  const partialTokens = u.reportedAttempts < u.generationAttempts;
+  const partialCost = u.pricedAttempts < u.generationAttempts;
+  const tokens = u.totalTokens === null ? "Token usage unavailable" : `${number4(u.totalTokens)} ${partialTokens ? "reported tokens" : "tokens"}`;
+  const cost = u.estimatedCostUsd === null ? "Cost unavailable" : `${partialCost ? "Partial estimate" : "Estimated cost"}: $${u.estimatedCostUsd.toFixed(4)}`;
+  const warnings = [];
+  if (partialTokens) warnings.push(`token usage reported for ${u.reportedAttempts}/${u.generationAttempts} attempts`);
+  if (partialCost) warnings.push(`cost available for ${u.pricedAttempts}/${u.generationAttempts} attempts`);
+  else if (u.estimatedCostUsd === null) warnings.push("no verified price for this model");
+  return `<sub>\u{1FA7A} Dr. Concret.io \xB7 ${name} \xB7 ${tokens} \xB7 ${cost}<br>Before cache discounts. This review run only.</sub>` + (warnings.length ? `
+
+Usage incomplete: ${warnings.join("; ")}.` : "");
+}
+function prUsageBreakdown(analysis, model) {
+  const u = summarizeUsage(analysis, model);
+  const value = (n, reported) => n == null ? "Not reported" : `${number4(n)}${reported < u.generationAttempts ? " (reported subset)" : ""}`;
+  return `| Tokens | Count |
+| --- | ---: |
+| Input | ${value(u.inputTokens, u.componentAttempts)} |
+| Output, including thinking | ${value(u.outputTokens, u.componentAttempts)} |
+| Thinking (included in output) | ${value(u.thoughtsTokens, u.thoughtsReportedAttempts)} |
+| Cached input | ${value(u.cachedTokens, u.cacheReportedAttempts ?? 0)} |
+
+Cached tokens are already included in input. Full accounting is in the linked report.`;
+}
 
 // src/reporting/render.ts
 var safe = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/@/g, "&#64;");
@@ -47012,14 +47040,11 @@ function diagnosis(analysis) {
   const concerns = analysis.findings.length ? "Concerns reported." : "No actionable concerns reported in the examined scope.";
   return concerns + (analysis.analysisStatus !== "complete" ? " Check-up incomplete." : "");
 }
-function mainResult(analysis, sha, model) {
-  const usage = summarizeUsage(analysis, model);
+function mainResult(analysis, sha) {
   const counts = ["critical", "high", "medium", "low"].map((level) => {
     const n = analysis.findings.filter((f) => f.severity === level).length;
     return n ? `${n} ${level}` : "";
   }).filter(Boolean).join(" \xB7 ") || "0 concerns";
-  const cost = usage.estimatedCostUsd === null ? "cost unavailable" : `estimated $${usage.estimatedCostUsd.toFixed(4)} USD before cache discounts`;
-  const incomplete = usage.pricedAttempts < usage.generationAttempts ? ` (incomplete: ${usage.pricedAttempts}/${usage.generationAttempts} attempts priced)` : "";
   return `**Diagnosis: ${diagnosis(analysis)}**
 
 ${counts}
@@ -47027,8 +47052,6 @@ ${counts}
 Reviewed commit: ${sha}
 
 Coverage: ${coverage(analysis)}
-
-This run: ${usage.totalTokens === null ? "unknown" : usage.totalTokens.toLocaleString("en-US")} known tokens \xB7 ${cost}${incomplete}
 
 Findings are advisory model-reported concerns.`;
 }
@@ -47311,9 +47334,11 @@ ${renderFinding(finding, options.inventory ? { repositoryUrl: web, evidence: opt
     const compact = (r) => r ? { ...r, text: r.text.slice(0, 1400) } : void 0;
     const prior = previous ? { latest: compact(previous.latest), completed: compact(previous.completed), current: compact(previous.current) } : void 0;
     const runLink = `[Workflow and report](${web}/actions/runs/${order.runId})`;
-    const current = { order, status: analysis.status, text: `${mainResult(analysis, manifest.headSha, manifest.model)}
+    const current = { order, status: analysis.status, text: `${mainResult(analysis, manifest.headSha)}
 
-${runLink}` };
+${runLink}
+
+${prUsageFooter(analysis, manifest.model)}` };
     const merged = (eligible) => mergeSummary(prior, current, eligible && details.every((d) => d.operation.state === "confirmed"));
     const render = (fallback2, eligible = false) => {
       const incomplete = targets.some((t) => t.operation.state !== "confirmed");
@@ -47345,9 +47370,9 @@ ${(options.notices ?? []).slice(0, 8).map((n) => safe(n.slice(0, 250))).join("\n
 </details>
 
 <details>
-<summary>Token usage and estimated cost for this attempt</summary>
+<summary>Usage breakdown</summary>
 
-${usageText(analysis, manifest.model)}
+${prUsageBreakdown(analysis, manifest.model)}
 
 </details>`;
     };
@@ -48399,7 +48424,7 @@ async function runReview(options) {
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"b3dc1de0a6e4c43e580b1a5d7fd6257f1103cda7a669a172bf3c5a17ba056e25"}` : "development";
+var actionRevision = true ? `sha256:${"b0cbd0d8cdc20326e7c0ce0b7eacb082baf19ae13366214ccd947841e149891b"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",

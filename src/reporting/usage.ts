@@ -71,3 +71,31 @@ export function usageText(analysis: Analysis, model?: string): string {
     + `Model: ${usage.model || 'not captured'}. [Rates checked ${pricingChecked}](${pricingSource}). ${usage.pricingBasis}\n\n`
     + `Admission budget charged: ${number(analysis.usage.charged)} tokens; unknown-usage reservations: ${analysis.usage.unknown}. This is a scheduling ledger, not token consumption or dollars.\n`;
 }
+
+// PR presentation is intentionally separate from the complete diagnostic artifact.
+export function prUsageFooter(analysis: Analysis, model?: string): string {
+  const u = summarizeUsage(analysis, model);
+  const names: Record<string, string> = { 'gemini-2.5-flash': 'Gemini 2.5 Flash', 'gemini-2.5-flash-lite': 'Gemini 2.5 Flash-Lite', 'gemini-2.5-pro': 'Gemini 2.5 Pro' };
+  const name = (names[u.model] ?? (u.model || 'Model not reported')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/@/g, '&#64;');
+  const partialTokens = u.reportedAttempts < u.generationAttempts;
+  const partialCost = u.pricedAttempts < u.generationAttempts;
+  const tokens = u.totalTokens === null ? 'Token usage unavailable' : `${number(u.totalTokens)} ${partialTokens ? 'reported tokens' : 'tokens'}`;
+  const cost = u.estimatedCostUsd === null ? 'Cost unavailable' : `${partialCost ? 'Partial estimate' : 'Estimated cost'}: $${u.estimatedCostUsd.toFixed(4)}`;
+  const warnings: string[] = [];
+  if (partialTokens) warnings.push(`token usage reported for ${u.reportedAttempts}/${u.generationAttempts} attempts`);
+  if (partialCost) warnings.push(`cost available for ${u.pricedAttempts}/${u.generationAttempts} attempts`);
+  else if (u.estimatedCostUsd === null) warnings.push('no verified price for this model');
+  return `<sub>🩺 Dr. Concret.io · ${name} · ${tokens} · ${cost}<br>Before cache discounts. This review run only.</sub>`
+    + (warnings.length ? `\n\nUsage incomplete: ${warnings.join('; ')}.` : '');
+}
+
+export function prUsageBreakdown(analysis: Analysis, model?: string): string {
+  const u = summarizeUsage(analysis, model);
+  const value = (n: number | null | undefined, reported: number): string => n == null ? 'Not reported' : `${number(n)}${reported < u.generationAttempts ? ' (reported subset)' : ''}`;
+  return `| Tokens | Count |\n| --- | ---: |\n`
+    + `| Input | ${value(u.inputTokens, u.componentAttempts)} |\n`
+    + `| Output, including thinking | ${value(u.outputTokens, u.componentAttempts)} |\n`
+    + `| Thinking (included in output) | ${value(u.thoughtsTokens, u.thoughtsReportedAttempts)} |\n`
+    + `| Cached input | ${value(u.cachedTokens, u.cacheReportedAttempts ?? 0)} |\n\n`
+    + 'Cached tokens are already included in input. Full accounting is in the linked report.';
+}

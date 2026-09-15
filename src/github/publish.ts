@@ -4,7 +4,7 @@ import { GitHubError, type GitHubAPI } from './client.js';
 import { mainResult, deliveryStatus, detailPages, renderFinding, summaryBody, safe, type SummaryState, type SummaryRecord } from '../reporting/render.js';
 import { findingId } from '../review/validate.js';
 import { hash, message } from '../util.js';
-import { usageText } from '../reporting/usage.js';
+import { prUsageFooter, prUsageBreakdown } from '../reporting/usage.js';
 import { z } from 'zod';
 
 export type RemoteComment = { id: number; body: string; user: { id: number }; html_url?: string; commit_id?: string; original_commit_id?: string; pull_request_review_id?: number; path?: string; side?: string; line?: number | null; original_line?: number; subject_type?: string; in_reply_to_id?: number };
@@ -150,7 +150,7 @@ export async function publish(options: PublishOptions): Promise<Publication> {
     const compact = (r: SummaryRecord | undefined) => r ? { ...r, text: r.text.slice(0, 1400) } : undefined;
     const prior = previous ? { latest: compact(previous.latest)!, completed: compact(previous.completed), current: compact(previous.current) } : undefined;
     const runLink = `[Workflow and report](${web}/actions/runs/${order.runId})`;
-    const current: SummaryRecord = { order, status: analysis.status, text: `${mainResult(analysis, manifest.headSha, manifest.model)}\n\n${runLink}` };
+    const current: SummaryRecord = { order, status: analysis.status, text: `${mainResult(analysis, manifest.headSha)}\n\n${runLink}\n\n${prUsageFooter(analysis, manifest.model)}` };
     const merged = (eligible: boolean) => mergeSummary(prior, current, eligible && details.every(d => d.operation.state === 'confirmed'));
     const render = (fallback: string, eligible = false) => {
       const incomplete = targets.some(t => t.operation.state !== 'confirmed');
@@ -158,7 +158,7 @@ export async function publish(options: PublishOptions): Promise<Publication> {
       const links = linked.slice(0, 20).map(t => `[${safe(t.finding.title.slice(0, 80))}](${web}/pull/${manifest.prNumber}#discussion_r${t.operation.remoteId})`);
       const unresolved = [...Object.values(analysis.atoms), ...Object.values(analysis.relations)].filter(v => v.status !== 'reviewed');
       const reasons = [...new Set(unresolved.map(v => v.reason))].slice(0, 12).map(reason => `- ${safe(reason.slice(0, 350))}`).join('\n');
-      return `${marker('summary')}\n${summaryBody(merged(eligible))}\n\n<details>\n<summary>All findings for ${manifest.headSha.slice(0, 7)} (${analysis.findings.length})</summary>\n\n${fallback || 'No actionable concerns reported.'}\n\n</details>\n\n<details>\n<summary>Coverage limitations and delivery status for this attempt</summary>\n\n${incomplete ? 'Inline delivery is incomplete. All accepted concerns are retained in the main comment or required overflow pages.' : 'Requested line/file comments confirmed.'}\n\n${links.join('\n\n')}\n\n${reasons}\n\n${(options.notices ?? []).slice(0, 8).map(n => safe(n.slice(0, 250))).join('\n')}\n\n</details>\n\n<details>\n<summary>Token usage and estimated cost for this attempt</summary>\n\n${usageText(analysis, manifest.model)}\n\n</details>`;
+      return `${marker('summary')}\n${summaryBody(merged(eligible))}\n\n<details>\n<summary>All findings for ${manifest.headSha.slice(0, 7)} (${analysis.findings.length})</summary>\n\n${fallback || 'No actionable concerns reported.'}\n\n</details>\n\n<details>\n<summary>Coverage limitations and delivery status for this attempt</summary>\n\n${incomplete ? 'Inline delivery is incomplete. All accepted concerns are retained in the main comment or required overflow pages.' : 'Requested line/file comments confirmed.'}\n\n${links.join('\n\n')}\n\n${reasons}\n\n${(options.notices ?? []).slice(0, 8).map(n => safe(n.slice(0, 250))).join('\n')}\n\n</details>\n\n<details>\n<summary>Usage breakdown</summary>\n\n${prUsageBreakdown(analysis, manifest.model)}\n\n</details>`;
     };
     let fallback = pages.map(p => p.text).join('');
     // Reserve space for individual discussion URLs added during finalization.

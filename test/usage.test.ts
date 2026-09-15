@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyAnalysis, runReview } from '../src/runtime/runner.js';
-import { summarizeUsage, usageText } from '../src/reporting/usage.js';
+import { summarizeUsage, usageText, prUsageFooter, prUsageBreakdown } from '../src/reporting/usage.js';
 import type { Attempt } from '../src/contracts.js';
 import { provider, result, source, rules, testLimits, settings } from './helpers.js';
 
@@ -58,4 +58,44 @@ it('reports cached input separately without repricing or counting it twice', () 
   expect(summarizeUsage(analysis, 'gemini-2.5-flash').cachedTokens).toBeNull();
   analysis.attempts[0]!.cachedContentTokenCount = 2000;
   expect(summarizeUsage(analysis, 'gemini-2.5-flash').cacheReportedAttempts).toBe(0);
+});
+
+describe('compact PR cost presentation', () => {
+  it('matches artifact totals and keeps diagnostic accounting out of the footer', () => {
+    const a = analysis([{ ...attempt(253845, 298337), thoughtsTokenCount: 41780, cachedContentTokenCount: 35234 }]);
+    const footer = prUsageFooter(a, 'models/gemini-2.5-flash');
+    expect(footer).toContain('Gemini 2.5 Flash · 298,337 tokens · Estimated cost: $0.1874');
+    expect(footer).not.toContain('incomplete');
+    expect(footer).not.toContain('known tokens');
+    expect(usageText(a, 'gemini-2.5-flash')).toContain('$0.1874 USD');
+    expect(usageText(a, 'gemini-2.5-flash')).toContain('Admission budget charged');
+    expect(prUsageBreakdown(a)).toContain('44,492');
+    expect(prUsageBreakdown(a)).toContain('41,780');
+    expect(prUsageBreakdown(a)).toContain('35,234');
+  });
+  it('labels partial totals and estimates with their actual coverage', () => {
+    const a = analysis([attempt(1000, 1200), { taskId: 'missing', preflight: 10 }]);
+    const footer = prUsageFooter(a, 'gemini-2.5-flash');
+    expect(footer).toContain('1,200 reported tokens · Partial estimate: $0.0008');
+    expect(footer).toContain('token usage reported for 1/2 attempts');
+    expect(footer).toContain('cost available for 1/2 attempts');
+    expect(prUsageBreakdown(a)).toContain('1,000 (reported subset)');
+  });
+  it('distinguishes all unknown usage, unavailable model prices, and zero attempts', () => {
+    const missing = prUsageFooter(analysis([{ taskId: 'missing', preflight: 10 }]), 'gemini-2.5-flash');
+    expect(missing).toContain('Token usage unavailable · Cost unavailable');
+    expect(missing).not.toContain('$0.0000');
+    expect(prUsageFooter(analysis([attempt(100, 200)]), 'unknown')).toContain('200 tokens · Cost unavailable');
+    const zero = prUsageFooter(emptyAnalysis(), 'gemini-2.5-flash');
+    expect(zero).toContain('0 tokens · Estimated cost: $0.0000');
+    expect(zero).not.toContain('incomplete');
+  });
+  it('does not invent optional metadata or equate complete totals with complete pricing', () => {
+    const a = analysis([attempt(1000, 1200), { taskId: 'no-input', preflight: 10, totalTokenCount: 100 }]);
+    const footer = prUsageFooter(a, 'gemini-2.5-flash');
+    expect(footer).toContain('1,300 tokens · Partial estimate: $0.0008');
+    expect(footer).not.toContain('token usage reported for');
+    expect(prUsageBreakdown(a)).toContain('| Thinking (included in output) | Not reported |');
+    expect(prUsageBreakdown(a)).toContain('| Cached input | Not reported |');
+  });
 });
