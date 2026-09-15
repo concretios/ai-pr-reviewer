@@ -6,7 +6,7 @@ import type { Binding, RepairFeedback } from '../providers/projection.js';
 export class ResponseError extends Error {
   constructor(readonly feedback: RepairFeedback) { super(`Invalid response: ${feedback.code}`); }
 }
-export function decodeCompact(text: string, task: Task, binding: Binding): TaskResponse {
+export function decodeCompact(text: string, task: Task, binding: Binding): TaskResponse & { filteredCandidates?: Array<{ title: string; classification: string }> } {
   let value: unknown;
   try { value = JSON.parse(text); } catch { throw new ResponseError({ code: 'json' }); }
   if (typeof value !== 'object' || !value || !('kind' in value) || !['result', 'context_request'].includes(String(value.kind))) throw new ResponseError({ code: 'kind' });
@@ -23,11 +23,13 @@ export function decodeCompact(text: string, task: Task, binding: Binding): TaskR
     const stable = map.get(id); if (!stable) throw new ResponseError({ code: 'reference' }); return stable;
   };
   const ids = task.kind === 'review' ? binding.atoms : binding.relations;
-  const findings = response.findings.map(f => ({ ...f, introducedByAtomIds: f.introducedByAtomIds.map(id => translate(binding.atoms, id)),
+  const candidates = response.findings.map(f => ({ ...f, introducedByAtomIds: f.introducedByAtomIds.map(id => translate(binding.atoms, id)),
     evidenceIds: f.evidenceIds.map(id => translate(binding.evidence, id)) }));
-  return decode(JSON.stringify({ kind: 'result', taskId: task.id,
+  const findings = candidates.filter(f => f.classification === 'introduced_failure').map(({ classification: _classification, ...finding }) => finding);
+  const decoded = decode(JSON.stringify({ kind: 'result', taskId: task.id,
     items: [...response.reviewedIds.map(id => ({ id: translate(ids, id), status: 'reviewed', reason: 'Completion metadata: model marked this obligation reviewed.' })),
       ...response.unresolved.map(item => ({ ...item, id: translate(ids, item.id), status: 'unresolved' }))], findings }), task);
+  return { ...decoded, filteredCandidates: candidates.filter(f => f.classification !== 'introduced_failure').map(f => ({ title: f.title, classification: f.classification })) };
 }
 import { hash, unique } from '../util.js';
 

@@ -176,7 +176,7 @@ it('counts targeted repair feedback and records every attempt before validation'
   o.provider.count = vi.fn(async req => { counted.push(JSON.stringify(req)); return 100; });
   const run = await runReview(o);
   expect(run.status).toBe('complete'); expect(run.usage.charged).toBe(1500);
-  expect(run.attempts[0]).toMatchObject({ purpose: 'initial', outcome: 'invalid', cachedContentTokenCount: 800, thinkingBudget: -1, protocolVersion: 'compact-v1' });
+  expect(run.attempts[0]).toMatchObject({ purpose: 'initial', outcome: 'invalid', cachedContentTokenCount: 800, thinkingBudget: -1, protocolVersion: 'compact-v2' });
   expect(run.attempts[1]).toMatchObject({ purpose: 'invalid_replacement', outcome: 'result' });
   expect(run.attempts[0]!.requestHash).not.toBe(run.attempts[1]!.requestHash);
 });

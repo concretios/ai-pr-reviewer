@@ -46769,20 +46769,27 @@ var TaskResponseSchema = external_exports.discriminatedUnion("kind", [
     findings: external_exports.array(FindingSchema).max(100)
   })
 ]);
+var CandidateSchema = external_exports.strictObject({
+  classification: external_exports.enum(["introduced_failure", "existing_issue", "improvement", "preference", "insufficient_evidence"]).describe("Classify the causal claim. Only introduced_failure is publishable. Cosmetic changes, preferences and descriptions of fixes are not introduced failures."),
+  ...FindingSchema.shape,
+  changedBehavior: explanation.describe("Specific BEFORE versus AFTER behavior. Describe what the PR changes, not an imagined implementation."),
+  trigger: explanation.describe("Concrete supported input or situation that makes the NEW code fail. Merely rendering a changed component is not a failing trigger."),
+  consequence: explanation.describe("Incorrect behavior caused by the NEW code under the trigger, and why it violates a supported requirement. A smaller font, more badges, or an overlay preventing races is not itself a failure. Do not describe what would fail WITHOUT the fix.")
+});
 var CompactResponseSchema = external_exports.discriminatedUnion("kind", [
   external_exports.strictObject({
-    protocolVersion: external_exports.literal("compact-v1"),
+    protocolVersion: external_exports.literal("compact-v2"),
     requestId: id,
     kind: external_exports.literal("context_request"),
     requests: external_exports.array(LookupSchema).min(1).max(4)
   }),
   external_exports.strictObject({
-    protocolVersion: external_exports.literal("compact-v1"),
+    protocolVersion: external_exports.literal("compact-v2"),
     requestId: id,
     kind: external_exports.literal("result"),
     reviewedIds: external_exports.array(id),
     unresolved: external_exports.array(external_exports.strictObject({ id, reason: explanation })),
-    findings: external_exports.array(FindingSchema).max(100)
+    findings: external_exports.array(CandidateSchema).max(100)
   })
 ]);
 var wireSchema = external_exports.toJSONSchema(CompactResponseSchema, {
@@ -46828,12 +46835,13 @@ function decodeCompact(text, task, binding) {
     return stable;
   };
   const ids = task.kind === "review" ? binding.atoms : binding.relations;
-  const findings = response.findings.map((f) => ({
+  const candidates = response.findings.map((f) => ({
     ...f,
     introducedByAtomIds: f.introducedByAtomIds.map((id2) => translate(binding.atoms, id2)),
     evidenceIds: f.evidenceIds.map((id2) => translate(binding.evidence, id2))
   }));
-  return decode3(JSON.stringify({
+  const findings = candidates.filter((f) => f.classification === "introduced_failure").map(({ classification: _classification, ...finding }) => finding);
+  const decoded = decode3(JSON.stringify({
     kind: "result",
     taskId: task.id,
     items: [
@@ -46842,6 +46850,7 @@ function decodeCompact(text, task, binding) {
     ],
     findings
   }), task);
+  return { ...decoded, filteredCandidates: candidates.filter((f) => f.classification !== "introduced_failure").map((f) => ({ title: f.title, classification: f.classification })) };
 }
 function decode3(text, task) {
   const response = TaskResponseSchema.parse(JSON.parse(text));
@@ -47141,6 +47150,7 @@ function compareOrder(a, b) {
 }
 function mergeSummary(previous, current, completedEligible = true) {
   if (!previous) return { latest: current, completed: current.status === "complete" && completedEligible ? current : void 0 };
+  if (previous.current && (compareOrder(previous.current.order, previous.latest.order) ?? -1) >= 0) previous = { ...previous, latest: previous.current };
   const newer = compareOrder(current.order, previous.latest.order);
   const latest = newer !== void 0 && newer >= 0 ? current : previous.latest;
   const completedOrder = previous.completed ? compareOrder(current.order, previous.completed.order) : 1;
@@ -47235,7 +47245,7 @@ async function publish(options) {
       const paths = new Set(atoms.map((a) => a.side === "LEFT" ? a.oldPath : a.path));
       if (atoms.length === finding.introducedByAtomIds.length && paths.size === 1) {
         const path = [...paths][0];
-        if (options.inventory.atoms.some((a) => a.path === path && a.side === "RIGHT")) anchor2 = { path, subject_type: "file" };
+        if (options.inventory.atoms.some((a) => a.path === path && a.side === "RIGHT") || manifest.evidenceBlobs[`${manifest.headSha}:${path}`]?.path === path) anchor2 = { path, subject_type: "file" };
       }
     }
     if (!anchor2) continue;
@@ -47758,11 +47768,13 @@ Copy protocolVersion and requestId exactly. For a completed response, set kind t
 Every concern needs introducedByAtomIds identifying an actual change and evidenceIds identifying supplied raw source. Unchanged and base-side evidence can support the trigger. Only anchor to an actual changed line using its exact path, LEFT or RIGHT side, and 1-based line number; otherwise use null. Report critical/high/medium/low severity according to actual consequence. These concerns are model-reported, not independently verified defects.
 
 Before including a finding, check its direction: the NEW code must introduce the described failure. A new finally block that restores cleanup or an overlay that prevents concurrent actions is not a regression merely because the old code lacked it. Describe the before/after change, the supported failing input or situation, and why supplied guards, callers, or tests do not prevent the consequence. Do not report a removed CSS rule without evidence that an affected consumer still needs it. Exclude generic missing-test comments, personal preferences, unsupported assumptions, and improvements described as bugs. Keep changedBehavior, trigger and consequence concise, usually one sentence each. More explanation is appropriate only when needed to establish the causal chain. No quota of findings and no forced praise.
+
+Classify each candidate explicitly before deciding to report it: introduced_failure, existing_issue, improvement, preference, or insufficient_evidence. Only introduced_failure is publishable. If you cannot establish a specific incorrect result, broken interaction, exception, data loss, authorization failure, or concrete resource/performance failure caused by this PR, omit the finding or classify it insufficient_evidence. A deliberate default-value change is not inherently a defect without evidence of the required default. A smaller font or an additional status badge is not a defect just because the appearance changed. An overlay preventing races is an improvement. Do not turn a description of a change into an invented failure. Prefer an empty findings array to weak observations.
 `;
 var integrationPrompt = "Answer the explicit cross-file relationship questions. Both raw endpoints are supplied, with bounded excerpts. Request exact definitions, guards, callers, or tests if essential evidence is absent. Do not infer a defect merely because related code changed in separate batches.\nReturn exactly the expected relation IDs. A reviewed relation means its explicit question was examined using adequate context; unresolved means essential context is missing. Integration completion does not increase changed-line coverage. All review protocol and evidence requirements also apply here.\n";
 
 // src/providers/projection.ts
-var protocolVersion = "compact-v1";
+var protocolVersion = "compact-v2";
 function sourceBlocks(evidence) {
   const groups = /* @__PURE__ */ new Map();
   for (const e of evidence) {
@@ -48313,6 +48325,11 @@ async function runReview(options) {
       }
       if (!open3()) return;
       attempt.outcome = "result";
+      for (const candidate of response.filteredCandidates ?? []) run.diagnostics.push({
+        taskId: task.id,
+        disposition: "not_introduced_failure",
+        reason: `Not published (${candidate.classification}): ${candidate.title}`
+      });
       const validated = validateFindings(response.findings, task, inventory2);
       for (const finding of validated.accepted) {
         const id2 = findingId(finding);
@@ -48382,7 +48399,7 @@ async function runReview(options) {
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"18530f04889b486ad8031193b165aaf341814151bb9dd17080795c75bd7fc662"}` : "development";
+var actionRevision = true ? `sha256:${"b3dc1de0a6e4c43e580b1a5d7fd6257f1103cda7a669a172bf3c5a17ba056e25"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",

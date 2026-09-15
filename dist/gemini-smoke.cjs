@@ -27052,6 +27052,8 @@ Copy protocolVersion and requestId exactly. For a completed response, set kind t
 Every concern needs introducedByAtomIds identifying an actual change and evidenceIds identifying supplied raw source. Unchanged and base-side evidence can support the trigger. Only anchor to an actual changed line using its exact path, LEFT or RIGHT side, and 1-based line number; otherwise use null. Report critical/high/medium/low severity according to actual consequence. These concerns are model-reported, not independently verified defects.
 
 Before including a finding, check its direction: the NEW code must introduce the described failure. A new finally block that restores cleanup or an overlay that prevents concurrent actions is not a regression merely because the old code lacked it. Describe the before/after change, the supported failing input or situation, and why supplied guards, callers, or tests do not prevent the consequence. Do not report a removed CSS rule without evidence that an affected consumer still needs it. Exclude generic missing-test comments, personal preferences, unsupported assumptions, and improvements described as bugs. Keep changedBehavior, trigger and consequence concise, usually one sentence each. More explanation is appropriate only when needed to establish the causal chain. No quota of findings and no forced praise.
+
+Classify each candidate explicitly before deciding to report it: introduced_failure, existing_issue, improvement, preference, or insufficient_evidence. Only introduced_failure is publishable. If you cannot establish a specific incorrect result, broken interaction, exception, data loss, authorization failure, or concrete resource/performance failure caused by this PR, omit the finding or classify it insufficient_evidence. A deliberate default-value change is not inherently a defect without evidence of the required default. A smaller font or an additional status badge is not a defect just because the appearance changed. An overlay preventing races is an improvement. Do not turn a description of a change into an invented failure. Prefer an empty findings array to weak observations.
 `;
 var integrationPrompt = "Answer the explicit cross-file relationship questions. Both raw endpoints are supplied, with bounded excerpts. Request exact definitions, guards, callers, or tests if essential evidence is absent. Do not infer a defect merely because related code changed in separate batches.\nReturn exactly the expected relation IDs. A reviewed relation means its explicit question was examined using adequate context; unresolved means essential context is missing. Integration completion does not increase changed-line coverage. All review protocol and evidence requirements also apply here.\n";
 
@@ -27081,20 +27083,27 @@ var TaskResponseSchema = external_exports.discriminatedUnion("kind", [
     findings: external_exports.array(FindingSchema).max(100)
   })
 ]);
+var CandidateSchema = external_exports.strictObject({
+  classification: external_exports.enum(["introduced_failure", "existing_issue", "improvement", "preference", "insufficient_evidence"]).describe("Classify the causal claim. Only introduced_failure is publishable. Cosmetic changes, preferences and descriptions of fixes are not introduced failures."),
+  ...FindingSchema.shape,
+  changedBehavior: explanation.describe("Specific BEFORE versus AFTER behavior. Describe what the PR changes, not an imagined implementation."),
+  trigger: explanation.describe("Concrete supported input or situation that makes the NEW code fail. Merely rendering a changed component is not a failing trigger."),
+  consequence: explanation.describe("Incorrect behavior caused by the NEW code under the trigger, and why it violates a supported requirement. A smaller font, more badges, or an overlay preventing races is not itself a failure. Do not describe what would fail WITHOUT the fix.")
+});
 var CompactResponseSchema = external_exports.discriminatedUnion("kind", [
   external_exports.strictObject({
-    protocolVersion: external_exports.literal("compact-v1"),
+    protocolVersion: external_exports.literal("compact-v2"),
     requestId: id,
     kind: external_exports.literal("context_request"),
     requests: external_exports.array(LookupSchema).min(1).max(4)
   }),
   external_exports.strictObject({
-    protocolVersion: external_exports.literal("compact-v1"),
+    protocolVersion: external_exports.literal("compact-v2"),
     requestId: id,
     kind: external_exports.literal("result"),
     reviewedIds: external_exports.array(id),
     unresolved: external_exports.array(external_exports.strictObject({ id, reason: explanation })),
-    findings: external_exports.array(FindingSchema).max(100)
+    findings: external_exports.array(CandidateSchema).max(100)
   })
 ]);
 var wireSchema = external_exports.toJSONSchema(CompactResponseSchema, {
@@ -27118,7 +27127,7 @@ var hash2 = (value) => (0, import_node_crypto.createHash)("sha256").update(typeo
 var unique = (values) => [...new Set(values)];
 
 // src/providers/projection.ts
-var protocolVersion = "compact-v1";
+var protocolVersion = "compact-v2";
 function sourceBlocks(evidence) {
   const groups = /* @__PURE__ */ new Map();
   for (const e of evidence) {
@@ -27388,12 +27397,13 @@ function decodeCompact(text, task, binding) {
     return stable;
   };
   const ids = task.kind === "review" ? binding.atoms : binding.relations;
-  const findings = response.findings.map((f) => ({
+  const candidates = response.findings.map((f) => ({
     ...f,
     introducedByAtomIds: f.introducedByAtomIds.map((id2) => translate(binding.atoms, id2)),
     evidenceIds: f.evidenceIds.map((id2) => translate(binding.evidence, id2))
   }));
-  return decode3(JSON.stringify({
+  const findings = candidates.filter((f) => f.classification === "introduced_failure").map(({ classification: _classification, ...finding }) => finding);
+  const decoded = decode3(JSON.stringify({
     kind: "result",
     taskId: task.id,
     items: [
@@ -27402,6 +27412,7 @@ function decodeCompact(text, task, binding) {
     ],
     findings
   }), task);
+  return { ...decoded, filteredCandidates: candidates.filter((f) => f.classification !== "introduced_failure").map((f) => ({ title: f.title, classification: f.classification })) };
 }
 function decode3(text, task) {
   const response = TaskResponseSchema.parse(JSON.parse(text));

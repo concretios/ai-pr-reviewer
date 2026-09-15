@@ -172,3 +172,15 @@ it('backfills legacy timestamps when actions metadata becomes readable', async (
   expect(state.latest.order.runId).toBe('10'); expect(state.current).toBeUndefined();
   expect(s.comments).toHaveLength(1);
 });
+it('keeps a newer formerly-unordered record after timestamp backfill', () => {
+  const record = (runId: string, day: string) => ({ order: { runId, createdAt: `2026-09-${day}T00:00:00Z`, attempt: 1 }, status: 'partial' as const, text: runId });
+  const state = mergeSummary({ latest: record('10', '10'), current: record('30', '15') }, record('20', '12'));
+  expect(state.latest.order.runId).toBe('30'); expect(state.current!.order.runId).toBe('20');
+});
+it('allows a deletion-only change as a file comment when the head manifest proves the file still exists', async () => {
+  const s = setup(); const inv = source(); inv.atoms[0]!.side = 'LEFT';
+  s.options.analysis.findings = [{ ...finding, anchor: null }];
+  const manifestWithFile = { ...manifest, evidenceBlobs: { [`${manifest.headSha}:file0.ts`]: { revision: manifest.headSha, path: 'file0.ts', blobId: 'head-blob' } } };
+  await publish({ ...s.options, manifest: manifestWithFile, inventory: inv });
+  expect(s.inlineComments[0]!.subject_type).toBe('file');
+});

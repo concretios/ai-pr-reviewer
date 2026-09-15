@@ -23,7 +23,7 @@ export function taskInput(req: Request): { requestId: string; protocolVersion: s
 export function result(req: Request, findings: Finding[] = []): Generation {
   const input = taskInput(req);
   return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', protocolVersion: input.protocolVersion, requestId: input.requestId,
-    reviewedIds: input.expectedIds, unresolved: [], findings }), usage: { totalTokenCount: 500, promptTokenCount: 400 } };
+    reviewedIds: input.expectedIds, unresolved: [], findings: findings.map(f => ({ classification: 'introduced_failure', ...f })) }), usage: { totalTokenCount: 500, promptTokenCount: 400 } };
 }
 export function provider(generate: (req: Request, signal: AbortSignal) => Promise<Generation> = async req => result(req)): Provider {
   return { count: vi.fn(async () => 100), generateOnce: vi.fn(generate) };

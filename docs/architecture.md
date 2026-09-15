@@ -85,10 +85,12 @@ Configuration/internal errors and unavailable analysis also fail. Findings do no
 
 Official metadata, token-count, review, concurrency, and v7 action release references were checked on 2026-09-15. Paid provider response compatibility and real GitHub runner execution remain release gates; mocked contract checks do not substitute for them.
 
-## Provider projection and compact-v1
+## Provider projection and compact-v2
 
 The provider-facing source table combines only compatible overlapping/adjacent evidence windows. Every original evidence interval remains explicit. Conflicts, inconsistent line counts and gaps never produce invented combined source. Atom text is omitted only when the included associated evidence reconstructs it exactly. Internal inventory and artifacts retain stable IDs and their existing text representation.
 
-Ordered rules precede variable task data within user content for implicit cache opportunities; they never become system instructions. Lookup results reference source-table evidence. Short aliases exist only on the wire. A request binding includes stable task/mapping identity, rules, source, schema, settings and repair feedback. Responses must return compact-v1 and the exact requestId. Explicit reviewedIds and unresolved entries partition expected obligations before aliases translate to stable IDs and existing validation runs. Old response schemas remain available for internal/historical decoding, never as a live fallback.
+Ordered rules precede variable task data within user content for implicit cache opportunities; they never become system instructions. Lookup results reference source-table evidence. Short aliases exist only on the wire. A request binding includes stable task/mapping identity, rules, source, schema, settings and repair feedback. Responses must return compact-v2 and the exact requestId. Explicit reviewedIds and unresolved entries partition expected obligations before aliases translate to stable IDs and existing validation runs. Old response schemas remain available for internal/historical decoding, never as a live fallback.
 
 The invalid replacement receives a bounded error code, not raw output. Its complete payload is recounted. No retry allowance, input limit, generation budget, output ceiling or thinking setting increases. Attempt metadata records purpose, outcome, request hash, protocol version and effective thinking budget; cache counts remain optional.
+
+Compact-v2 candidates carry an explicit causal classification. Only introduced_failure translates to an internal finding; improvements, preferences, existing issues and insufficient evidence are diagnostic-only. This is model-reported triage, not semantic proof.

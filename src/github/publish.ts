@@ -20,6 +20,7 @@ export function compareOrder(a: RunOrder, b: RunOrder): number | undefined {
 }
 export function mergeSummary(previous: SummaryState | undefined, current: SummaryRecord, completedEligible = true): SummaryState {
   if (!previous) return { latest: current, completed: current.status === 'complete' && completedEligible ? current : undefined };
+  if (previous.current && (compareOrder(previous.current.order, previous.latest.order) ?? -1) >= 0) previous = { ...previous, latest: previous.current };
   const newer = compareOrder(current.order, previous.latest.order);
   const latest = newer !== undefined && newer >= 0 ? current : previous.latest;
   const completedOrder = previous.completed ? compareOrder(current.order, previous.completed.order) : 1;
@@ -96,7 +97,7 @@ export async function publish(options: PublishOptions): Promise<Publication> {
       if (atoms.length === finding.introducedByAtomIds.length && paths.size === 1) {
         const path = [...paths][0]!;
         // A deleted or renamed-away path is not a valid current file target.
-        if (options.inventory.atoms.some(a => a.path === path && a.side === 'RIGHT')) anchor = { path, subject_type: 'file' };
+        if (options.inventory.atoms.some(a => a.path === path && a.side === 'RIGHT') || manifest.evidenceBlobs[`${manifest.headSha}:${path}`]?.path === path) anchor = { path, subject_type: 'file' };
       }
     }
     if (!anchor) continue;

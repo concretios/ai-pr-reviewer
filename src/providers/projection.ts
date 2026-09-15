@@ -2,7 +2,7 @@ import type { Atom, Evidence, Inventory, LookupResult, Task } from '../contracts
 import { obligations } from '../contracts.js';
 import { hash } from '../util.js';
 
-export const protocolVersion = 'compact-v1';
+export const protocolVersion = 'compact-v2';
 export type RepairFeedback = { code: 'json' | 'shape' | 'kind' | 'identity' | 'completion' | 'reference'; expectedIds?: string[] };
 export type Binding = { requestId: string; taskId: string; expectedIds: string[];
   atoms: Map<string, string>; evidence: Map<string, string>; relations: Map<string, string> };

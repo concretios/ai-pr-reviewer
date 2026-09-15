@@ -23,7 +23,7 @@ export type Manifest = {
 };
 export type Inventory = { atoms: Atom[]; evidence: Map<string, Evidence>; omissions: Omission[]; relations: Relation[] };
 export type LookupResult = { request: LookupRequest; evidence: Evidence[]; limited: boolean; reason?: string };
-export type Diagnostic = { taskId?: string; reason: string; disposition?: 'rejected_invalid_evidence' | 'unresolved_missing_context' };
+export type Diagnostic = { taskId?: string; reason: string; disposition?: 'rejected_invalid_evidence' | 'unresolved_missing_context' | 'not_introduced_failure' };
 export type Attempt = { taskId: string; preflight: number; finishReason?: string; totalTokenCount?: number; promptTokenCount?: number;
   candidatesTokenCount?: number; thoughtsTokenCount?: number; cachedContentTokenCount?: number;
   purpose?: 'initial' | 'lookup_continuation' | 'invalid_replacement' | 'transport_retry' | 'truncation_recovery';

@@ -91,9 +91,19 @@ describe('compact response identity and completion', () => {
   });
   it('context requests complete no work and enforce local bounds', () => {
     const { task, prepared: p } = setup();
-    const response = { protocolVersion: 'compact-v1', requestId: p.binding.requestId, kind: 'context_request',
+    const response = { protocolVersion: 'compact-v2', requestId: p.binding.requestId, kind: 'context_request',
       requests: [{ kind: 'search', side: 'RIGHT', literal: 'definition' }] };
     expect(decodeCompact(JSON.stringify(response), task, p.binding).kind).toBe('context_request');
     expect(CompactResponseSchema.safeParse({ ...response, requests: Array(5).fill(response.requests[0]) }).success).toBe(false);
   });
+});
+it('filters improvements, preferences and unsupported claims without spending a replacement', () => {
+  const inv = source(); const task = reviewTask(inv.atoms);
+  const p = prepareRequest(task, inv, rules, 'gemini-2.5-flash', 32768);
+  const value = JSON.parse(result(p.request, [finding]).text);
+  value.findings.push(...['improvement', 'preference', 'existing_issue', 'insufficient_evidence'].map(classification => ({ ...value.findings[0], classification, title: classification })));
+  const response = decodeCompact(JSON.stringify(value), task, p.binding);
+  expect(response.kind).toBe('result');
+  if (response.kind === 'result') expect(response.findings).toHaveLength(1);
+  expect(response.filteredCandidates).toHaveLength(4);
 });

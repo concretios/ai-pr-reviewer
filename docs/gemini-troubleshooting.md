@@ -97,5 +97,20 @@ problem. Two historical HistoryApp comments described improvements as regression
 structural evidence validation alone cannot determine that causal truth. Do not
 claim automatic semantic verification from prompt instructions or passing mocks.
 
-Live verification of this revision: pending. No cost or quality improvement claim
-is established by these implementation checks.
+The first combined [pilot](https://github.com/concretios/trace/actions/runs/34965711430)
+passed result/context protocol smoke and publication: all 198 changed ranges and
+3/6 cross-file checks, 299,889 tokens, $0.2104475 before cache discounts, 37,790
+reported cached input tokens, zero unknown total usage. Both invalid replacements
+recovered successfully. The changed scope and adaptive partitioning differ from
+older runs; these figures do not establish causal savings.
+
+Manual inspection rejected the quality gate: the model still offered cosmetic
+observations and an improvement as findings. Prompt-only checks were insufficient.
+The compact-v2 wire contract now requires each candidate to be classified as an
+introduced failure, existing issue, improvement, preference or insufficient evidence.
+Only introduced failures enter publication; other classifications become diagnostics
+without a new model call or retry. Schema field descriptions demand an actual new
+failure under a supported trigger. Classification remains model-reported, not an
+independent semantic proof. Wider rollout is held until repeat functional review.
+
+Repeat verification of the tightened candidate contract: pending.

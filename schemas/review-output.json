@@ -6,7 +6,7 @@
         "protocolVersion": {
           "type": "string",
           "enum": [
-            "compact-v1"
+            "compact-v2"
           ]
         },
         "requestId": {
@@ -113,7 +113,7 @@
         "protocolVersion": {
           "type": "string",
           "enum": [
-            "compact-v1"
+            "compact-v2"
           ]
         },
         "requestId": {
@@ -163,6 +163,17 @@
           "items": {
             "type": "object",
             "properties": {
+              "classification": {
+                "type": "string",
+                "enum": [
+                  "introduced_failure",
+                  "existing_issue",
+                  "improvement",
+                  "preference",
+                  "insufficient_evidence"
+                ],
+                "description": "Classify the causal claim. Only introduced_failure is publishable. Cosmetic changes, preferences and descriptions of fixes are not introduced failures."
+              },
               "severity": {
                 "type": "string",
                 "enum": [
@@ -180,17 +191,20 @@
               "changedBehavior": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "Specific BEFORE versus AFTER behavior. Describe what the PR changes, not an imagined implementation."
               },
               "trigger": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "Concrete supported input or situation that makes the NEW code fail. Merely rendering a changed component is not a failing trigger."
               },
               "consequence": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "Incorrect behavior caused by the NEW code under the trigger, and why it violates a supported requirement. A smaller font, more badges, or an overlay preventing races is not itself a failure. Do not describe what would fail WITHOUT the fix."
               },
               "introducedByAtomIds": {
                 "minItems": 1,
@@ -247,6 +261,7 @@
               }
             },
             "required": [
+              "classification",
               "severity",
               "title",
               "changedBehavior",

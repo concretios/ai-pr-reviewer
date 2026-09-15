@@ -167,6 +167,8 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
       }
       if (!open()) return;
       attempt.outcome = 'result';
+      for (const candidate of response.filteredCandidates ?? []) run.diagnostics.push({ taskId: task.id, disposition: 'not_introduced_failure',
+        reason: `Not published (${candidate.classification}): ${candidate.title}` });
       const validated = validateFindings(response.findings, task, inventory);
       for (const finding of validated.accepted) {
         const id = findingId(finding);
