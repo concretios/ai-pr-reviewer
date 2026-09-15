@@ -36109,8 +36109,8 @@ function ko_default() {
 var capitalizeFirstCharacter = (text) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
-function getUnitTypeFromNumber(number4) {
-  const abs = Math.abs(number4);
+function getUnitTypeFromNumber(number5) {
+  const abs = Math.abs(number5);
   const last = abs % 10;
   const last2 = abs % 100;
   if (last2 >= 11 && last2 <= 19 || last === 0)
@@ -46813,6 +46813,98 @@ function validateFindings(findings, task, inventory2) {
   return { accepted, diagnostics };
 }
 
+// src/reporting/usage.ts
+var pricingSource = "https://ai.google.dev/gemini-api/docs/pricing";
+var pricingChecked = "2026-09-15";
+function rates(model, input2) {
+  switch (model) {
+    case "gemini-2.5-flash":
+      return { input: 0.3, output: 2.5 };
+    case "gemini-2.5-flash-lite":
+      return { input: 0.1, output: 0.4 };
+    case "gemini-2.5-pro":
+      return input2 > 2e5 ? { input: 2.5, output: 15 } : { input: 1.25, output: 10 };
+    default:
+      return void 0;
+  }
+}
+var tokenCount = (value) => value !== void 0 && Number.isSafeInteger(value) && value >= 0;
+function summarizeUsage(analysis, model = "") {
+  model = model.replace(/^models\//, "");
+  const attempts = Math.max(analysis.usage.attempts, analysis.attempts.length);
+  let reported = 0;
+  let components = 0;
+  let priced = 0;
+  let total = 0;
+  let input2 = 0;
+  let output2 = 0;
+  let cost = 0;
+  let thoughts = 0;
+  let thoughtsReported = 0;
+  for (const attempt of analysis.attempts) {
+    if (tokenCount(attempt.thoughtsTokenCount)) {
+      thoughts += attempt.thoughtsTokenCount;
+      thoughtsReported++;
+    }
+    if (!tokenCount(attempt.totalTokenCount)) continue;
+    reported++;
+    total += attempt.totalTokenCount;
+    if (!tokenCount(attempt.promptTokenCount) || attempt.promptTokenCount > attempt.totalTokenCount) continue;
+    const generated = attempt.totalTokenCount - attempt.promptTokenCount;
+    components++;
+    input2 += attempt.promptTokenCount;
+    output2 += generated;
+    const price = rates(model, attempt.promptTokenCount);
+    if (price) {
+      priced++;
+      cost += (attempt.promptTokenCount * price.input + generated * price.output) / 1e6;
+    }
+  }
+  const supported = rates(model, 0) !== void 0;
+  return {
+    model,
+    generationAttempts: attempts,
+    reportedAttempts: reported,
+    unreportedAttempts: Math.max(0, attempts - reported),
+    totalTokens: reported || !attempts ? total : null,
+    inputTokens: components || !attempts ? input2 : null,
+    outputTokens: components || !attempts ? output2 : null,
+    componentAttempts: components,
+    thoughtsTokens: thoughtsReported || !attempts ? thoughts : null,
+    thoughtsReportedAttempts: thoughtsReported,
+    estimatedCostUsd: supported && (priced || !attempts) ? cost : null,
+    pricedAttempts: priced,
+    pricingChecked,
+    pricingSource,
+    pricingBasis: "Standard paid-tier text list prices; output includes thinking. Before cache discounts, free-tier allowances, credits and taxes. This invocation only; not a Google invoice.",
+    unavailableReason: !supported ? "No verified rate for this exact model." : attempts && !priced ? "Input/output usage was not reported." : void 0
+  };
+}
+var number4 = (value) => value === null ? "not reported" : value.toLocaleString("en-US");
+function usageText(analysis, model) {
+  const usage = summarizeUsage(analysis, model);
+  const incomplete = usage.pricedAttempts < usage.generationAttempts;
+  const cost = usage.estimatedCostUsd === null ? `Unavailable. ${usage.unavailableReason}` : `$${usage.estimatedCostUsd.toFixed(4)} USD${incomplete ? ` (incomplete: ${usage.pricedAttempts}/${usage.generationAttempts} attempts priced)` : ""}`;
+  return `### Token usage and estimated cost (this run)
+
+| Metric | Value |
+| --- | ---: |
+| Generation attempts, including retries | ${usage.generationAttempts} |
+| Total known generation tokens | ${number4(usage.totalTokens)} |
+| Input tokens | ${number4(usage.inputTokens)} |
+| Output tokens, including thinking | ${number4(usage.outputTokens)} |
+| Thinking tokens (included above, when reported) | ${number4(usage.thoughtsTokens)} |
+| Attempts without total usage | ${usage.unreportedAttempts} |
+| Estimated API cost | ${cost} |
+
+Usage totals cover ${usage.reportedAttempts}/${usage.generationAttempts} attempts; input/output covers ${usage.componentAttempts}/${usage.generationAttempts}; thinking covers ${usage.thoughtsReportedAttempts}/${usage.generationAttempts}. Unknown usage is excluded, not zero.
+
+Model: ${usage.model || "not captured"}. [Rates checked ${pricingChecked}](${pricingSource}). ${usage.pricingBasis}
+
+Admission budget charged: ${number4(analysis.usage.charged)} tokens; unknown-usage reservations: ${analysis.usage.unknown}. This is a scheduling ledger, not token consumption or dollars.
+`;
+}
+
 // src/reporting/render.ts
 var safe = (text) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/@/g, "&#64;");
 function renderFinding(finding) {
@@ -46859,7 +46951,7 @@ function coverage(analysis) {
   const relations = Object.values(analysis.relations);
   return `${atoms.filter((a) => a.status === "reviewed").length}/${atoms.length} changed ranges; ${relations.filter((r) => r.status === "reviewed").length}/${relations.length} cross-file questions`;
 }
-function analysisText(analysis, sha) {
+function analysisText(analysis, sha, model) {
   return `Analysis: **${analysis.analysisStatus}**${analysis.superseded ? " (live attempt superseded)" : ""}
 
 Captured head: ${sha}
@@ -46870,7 +46962,7 @@ Model-reported concerns: ${analysis.findings.length}. These are advisory concern
 
 ${analysis.analysisStatus === "complete" && !analysis.findings.length ? "No actionable concerns reported in the declared scope." : analysis.analysisStatus !== "complete" ? "Review coverage is incomplete. Unreviewed or unresolved code may contain issues." : ""}
 
-Generation attempts: ${analysis.usage.attempts}. Admission tokens charged: ${analysis.usage.charged}; unknown-usage attempts: ${analysis.usage.unknown}. This ledger is not an invoice guarantee.
+${usageText(analysis, model)}
 `;
 }
 function summaryBody(state) {
@@ -46903,7 +46995,7 @@ function renderReport(run) {
   const unresolved = [...Object.entries(run.analysis.atoms), ...Object.entries(run.analysis.relations)].filter(([, item]) => item.status !== "reviewed");
   return `# AI PR reviewer report
 
-${analysisText(run.analysis, run.manifest?.headSha ?? "not captured")}
+${analysisText(run.analysis, run.manifest?.headSha ?? "not captured", run.manifest?.model)}
 Publication: **${run.publication.status}**
 
 ${[run.configurationError, run.internalError, ...run.notices].filter(Boolean).map((s) => safe(s)).join("\n\n")}
@@ -46990,7 +47082,7 @@ Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findi
       comments: findings.map((f) => ({ path: f.anchor.path, side: f.anchor.side, line: f.anchor.line, body: renderFinding(f) }))
     });
   }
-  const summaryOperation = { id: "summary", required: true, contentHash: hash2(analysisText(analysis, manifest.headSha)), state: "pending", findingIds: analysis.findings.map(findingId) };
+  const summaryOperation = { id: "summary", required: true, contentHash: hash2(analysisText(analysis, manifest.headSha, manifest.model)), state: "pending", findingIds: analysis.findings.map(findingId) };
   publication.operations = [...details.map((d) => d.operation), ...inline.map((i) => i.operation), summaryOperation];
   for (const detail of details) detail.operation.contentHash = hash2(detail.body);
   for (const item of inline) item.operation.contentHash = hash2(item.body);
@@ -47070,7 +47162,7 @@ Advisory model-reported concerns for ${manifest.headSha}. Payload: ${hash2(findi
       const detailStatus = details.map((d) => `- Page ${d.operation.id}: ${d.operation.state}${d.operation.remoteId ? ` (comment ${d.operation.remoteId})` : ""}`).join("\n");
       const inlineLimit = inline.some((i) => i.operation.state !== "confirmed") ? "\n\nInline delivery is incomplete. All accepted concerns are required in the detail pages above." : "";
       const detailText = detailStatus.length < 4e3 ? detailStatus : `${details.filter((d) => d.operation.state === "confirmed").length}/${details.length} required detail pages confirmed. See artifact for operation IDs.`;
-      const current = { order, status: analysis.status, text: analysisText(analysis, manifest.headSha) + "\n" + detailText + inlineLimit + "\n\n" + (options.notices ?? []).slice(0, 8).join("\n").slice(0, 1e3) };
+      const current = { order, status: analysis.status, text: analysisText(analysis, manifest.headSha, manifest.model) + "\n" + detailText + inlineLimit + "\n\n" + (options.notices ?? []).slice(0, 8).join("\n").slice(0, 1e3) };
       const body = `${marker("summary")}
 ${summaryBody(mergeSummary(previous, current, details.every((d) => d.operation.state === "confirmed")))}`;
       if (Buffer.byteLength(body) >= 5e4) throw new Error("Required summary exceeds safe comment size");
@@ -47782,6 +47874,8 @@ async function runReview(options) {
       attempt.finishReason = generated.finishReason;
       attempt.totalTokenCount = generated.usage?.totalTokenCount;
       attempt.promptTokenCount = generated.usage?.promptTokenCount;
+      attempt.candidatesTokenCount = generated.usage?.candidatesTokenCount;
+      attempt.thoughtsTokenCount = generated.usage?.thoughtsTokenCount;
       if (generated.finishReason === "MAX_TOKENS") {
         if (await recoverSplit(task, preflight, compact, context)) return;
         if (!open3()) return;
@@ -47905,7 +47999,7 @@ async function runReview(options) {
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"c0bf0edeac95a1572dfdd6640b9e42a2312204fbeaf5e6150fe856b245aace91"}` : "development";
+var actionRevision = true ? `sha256:${"50a26ef9925c8cb346f4c6ffbd515a96c66038bcc2384eca5b3832df863a1fe7"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",
@@ -48061,6 +48155,7 @@ async function main() {
     process.removeListener("SIGTERM", cancel);
     process.removeListener("SIGINT", cancel);
     if (snapshot && run.manifest) run.manifest.evidenceBlobs = Object.fromEntries(snapshot.consumed);
+    run.usageReport = summarizeUsage(run.analysis, run.manifest?.model);
     const report = renderReport(run);
     if (directory) {
       await (0, import_promises2.writeFile)((0, import_node_path3.join)(directory, "report.json"), JSON.stringify(run, null, 2));

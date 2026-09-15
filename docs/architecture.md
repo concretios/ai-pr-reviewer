@@ -15,7 +15,7 @@ flowchart TD
   I --> J[Persist report and outputs, derive exit code]
 ```
 
-The provider boundary uses native REST fetch and has no SDK retries. Counting and generation share the canonical request. The generated wire schema comes from Zod and is embedded with both prompts and all runtime dependencies in `dist/index.js`.
+The provider boundary uses native REST fetch and has no SDK retries. Counting and generation share the canonical request. The generated wire schema projects Zod into Gemini-compatible constraints: omit `maxItems` and encode `const` literals as single-value enums. The strict local Zod schema retains all original validation limits. See the [incident guide](gemini-troubleshooting.md). The wire schema comes from Zod and is embedded with both prompts and all runtime dependencies in `dist/index.js`.
 
 ## Source identity
 
@@ -40,6 +40,8 @@ Each original lineage gets at most four lookup requests in one round. Each retur
 A valid application result requires STOP, complete JSON, the wire schema, exact task IDs, and source/anchor validation. STOP alone is insufficient. Local validation confirms structural/source constraints, not the truth of a causal claim. Exact duplicates are deduplicated; invalid candidates are terminal diagnostics. No mandatory praise, starter rules, or merge verdicts exist in v2 prompts.
 
 The ledger synchronously reserves the input ceiling plus output limit before each generation. Reported totalTokenCount settles the reservation once, without separately adding thoughtsTokenCount. Unknown usage retains the reservation. All retries and split descendants share generation-attempt/token budgets. Count calls, source reads, backoff, and publication share the wall-clock deadline.
+
+The separate [usage report](usage-and-cost.md) aggregates reported generation tokens and estimates standard text API cost per attempt. It includes retries and invalid responses, preserves unknown usage, and never prices ledger reservations or double counts thinking.
 
 Generation is bounded to 120 seconds and ends before the finalization reserve. Closure aborts the execution epoch and settles outstanding reservations conservatively. Every continuation checks epoch state before processing results, accepting context, scheduling work, or mutating state. Final reports are detached from worker state, so providers that ignore cancellation cannot reopen finalized reports.
 

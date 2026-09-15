@@ -14,6 +14,7 @@ import { addRelationships, lookup } from './source/context.js';
 import { Gemini } from './providers/gemini.js';
 import { emptyAnalysis, runReview } from './runtime/runner.js';
 import { actionExitCode, renderReport } from './reporting/render.js';
+import { summarizeUsage } from './reporting/usage.js';
 import { ConfigurationError, Superseded, UnsupportedSnapshot, hash, message } from './util.js';
 import { reviewPrompt, integrationPrompt } from './prompts.js';
 import { wireSchema } from './review/schema.js';
@@ -103,6 +104,7 @@ export async function main(): Promise<void> {
   } finally {
     clearTimeout(timer); process.removeListener('SIGTERM', cancel); process.removeListener('SIGINT', cancel);
     if (snapshot && run.manifest) run.manifest.evidenceBlobs = Object.fromEntries(snapshot.consumed);
+    run.usageReport = summarizeUsage(run.analysis, run.manifest?.model);
     const report = renderReport(run);
     if (directory) {
       await writeFile(join(directory, 'report.json'), JSON.stringify(run, null, 2));

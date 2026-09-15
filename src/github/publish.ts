@@ -58,7 +58,7 @@ export async function publish(options: PublishOptions): Promise<Publication> {
       body: `${marker(id)}\nAdvisory model-reported concerns for ${manifest.headSha}. Payload: ${hash(findings)}. All concerns are retained in detail comments.`,
       comments: findings.map(f => ({ path: f.anchor!.path, side: f.anchor!.side, line: f.anchor!.line, body: renderFinding(f) })) });
   }
-  const summaryOperation: Operation = { id: 'summary', required: true, contentHash: hash(analysisText(analysis, manifest.headSha)), state: 'pending', findingIds: analysis.findings.map(findingId) };
+  const summaryOperation: Operation = { id: 'summary', required: true, contentHash: hash(analysisText(analysis, manifest.headSha, manifest.model)), state: 'pending', findingIds: analysis.findings.map(findingId) };
   publication.operations = [...details.map(d => d.operation), ...inline.map(i => i.operation), summaryOperation];
   for (const detail of details) detail.operation.contentHash = hash(detail.body);
   for (const item of inline) item.operation.contentHash = hash(item.body);
@@ -118,7 +118,7 @@ export async function publish(options: PublishOptions): Promise<Publication> {
       const detailStatus = details.map(d => `- Page ${d.operation.id}: ${d.operation.state}${d.operation.remoteId ? ` (comment ${d.operation.remoteId})` : ''}`).join('\n');
       const inlineLimit = inline.some(i => i.operation.state !== 'confirmed') ? '\n\nInline delivery is incomplete. All accepted concerns are required in the detail pages above.' : '';
       const detailText = detailStatus.length < 4000 ? detailStatus : `${details.filter(d => d.operation.state === 'confirmed').length}/${details.length} required detail pages confirmed. See artifact for operation IDs.`;
-      const current = { order, status: analysis.status, text: analysisText(analysis, manifest.headSha) + '\n' + detailText + inlineLimit + '\n\n' + (options.notices ?? []).slice(0, 8).join('\n').slice(0, 1000) };
+      const current = { order, status: analysis.status, text: analysisText(analysis, manifest.headSha, manifest.model) + '\n' + detailText + inlineLimit + '\n\n' + (options.notices ?? []).slice(0, 8).join('\n').slice(0, 1000) };
       const body = `${marker('summary')}\n${summaryBody(mergeSummary(previous, current, details.every(d => d.operation.state === 'confirmed')))}`;
       if (Buffer.byteLength(body) >= 50000) throw new Error('Required summary exceeds safe comment size');
       if (await fresh()) await deliver(summaryOperation, body);

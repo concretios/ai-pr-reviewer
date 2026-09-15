@@ -31,6 +31,14 @@ function setup(mode = '') {
   return { options, final, comments, reviews, writes: () => writes };
 }
 describe('persistent delivery contract', () => {
+  it('publishes the same usage/cost figures in the PR summary and artifact report', async () => {
+    const s = setup();
+    s.options.analysis.attempts = [{ taskId: 'test', preflight: 1000, promptTokenCount: 1000, totalTokenCount: 2000 }];
+    s.options.analysis.usage = { attempts: 1, charged: 2000, reserved: 0, unknown: 0 };
+    const publication = await publish(s.options);
+    expect(s.comments.at(-1)!.body).toContain('$0.0028 USD');
+    expect(renderReport(s.final(publication))).toContain('$0.0028 USD');
+  });
   it('accepted POST plus lost response reconciles without duplicate writes', async () => {
     const s = setup('lost'); const p = await publish(s.options);
     expect(p.status).toBe('published'); expect(s.comments).toHaveLength(2); expect(s.reviews).toHaveLength(1); expect(actionExitCode(s.final(p))).toBe(0);

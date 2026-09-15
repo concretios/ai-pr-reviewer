@@ -78,6 +78,18 @@ Repository configuration cannot set publication or authorize extended mode. If a
 
 Reports include the source manifest, findings, coverage obligations, omissions, provider usage, recovery diagnostics, and every required/best-effort delivery operation. `report.md` is readable; `report.json`, `manifest.json`, `inventory.json`, and `evidence.json` support diagnosis. Early admission failures may not have a source manifest or inventory. Reports can contain private source and should use repository-appropriate artifact access.
 
+## Token usage and cost
+
+The PR summary and Actions report show total known generation tokens, input,
+output including thinking, unknown-usage attempts, and estimated USD cost for
+**this run**, including retries and invalid model responses. The estimate uses dated
+standard paid-tier rates; missing usage is excluded and marked incomplete. It is
+not an invoice. Admission reservations are shown separately and are never priced.
+
+Verified rates are bundled for Gemini 2.5 Flash, Flash-Lite and Pro. Other model
+names show usage with an unavailable cost estimate. See [usage and cost](docs/usage-and-cost.md)
+for rates, formulas, exclusions and the structured `report.json` fields.
+
 ## Budgets
 
 | Limit | Automatic | Extended |
@@ -94,7 +106,7 @@ Each original task lineage gets one bounded lookup round, one malformed-response
 
 ## Development and evaluation
 
-Use Node 24 or newer.
+Read [AGENTS.md](AGENTS.md) and the [Gemini regression guide](docs/gemini-troubleshooting.md). Use Node 24 or newer.
 
 ```sh
 npm ci
@@ -106,6 +118,8 @@ npm run evaluate -- --suite smoke --publish=false --dry-run
 ```
 
 `replay` reads the pinned historical Trace PR #29 comparison. It never calls a model or publishes. It uses `GITHUB_TOKEN`, an authenticated `gh` installation, or public Git access.
+
+For schema/provider/prompt/model changes, run the explicit paid contract check with `GEMINI_API_KEY` set: `npm run smoke:gemini -- --model gemini-2.5-flash`. It uses synthetic source and never publishes; mocks alone cannot establish API compatibility.
 
 A deliberate paid run uses the manual [evaluation workflow](.github/workflows/evaluate.yml) or omits `--dry-run` locally with `GEMINI_API_KEY` set. The smoke suite uses ten development cases. The release suite uses twenty held-out cases with three paired trials each. Human assessment is required before drawing model-quality conclusions. See [evaluation protocol](eval/README.md) and [architecture](docs/architecture.md).
 

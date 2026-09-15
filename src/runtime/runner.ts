@@ -120,6 +120,8 @@ export async function runReview(options: RunnerOptions): Promise<Analysis> {
       attempt.finishReason = generated.finishReason;
       attempt.totalTokenCount = generated.usage?.totalTokenCount;
       attempt.promptTokenCount = generated.usage?.promptTokenCount;
+      attempt.candidatesTokenCount = generated.usage?.candidatesTokenCount;
+      attempt.thoughtsTokenCount = generated.usage?.thoughtsTokenCount;
       if (generated.finishReason === 'MAX_TOKENS') {
         if (await recoverSplit(task, preflight, compact, context)) return;
         if (!open()) return;
