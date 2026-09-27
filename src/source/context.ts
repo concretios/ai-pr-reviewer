@@ -20,17 +20,18 @@ export async function addRelationships(snapshot: Snapshot, inventory: Inventory)
     for (const candidate of [`${stem}.test.ts`, `${stem}.spec.ts`, `${stem}.test.js`, `${posix.dirname(path)}/test_${posix.basename(stem)}.py`]) {
       if (tree.has(candidate)) targets.add(candidate);
     }
-    for (const target of [...targets].sort().slice(0, 4)) {
-      if (target === path) continue;
+    const candidates = [...targets].sort().slice(0, 4).filter(target => target !== path);
+    const relations = await Promise.all(candidates.map(async target => {
       const endpoint = await snapshot.evidence(target, 'RIGHT', 1, 200);
-      if (!endpoint) continue;
+      if (!endpoint) return undefined;
       inventory.evidence.set(endpoint.id, endpoint);
       const others = inventory.atoms.filter(a => a.path === target);
       const relation: Relation = { id: `r-${hash([path, target]).slice(0, 24)}`,
         question: `Do the changes in ${path} remain consistent with the directly referenced definition or associated test in ${target}? Request exact context if these bounded endpoints do not establish the contract.`,
         atomIds: unique([...atoms, ...others].map(a => a.id)), evidenceIds: unique([...atoms.flatMap(a => a.evidenceIds), ...others.flatMap(a => a.evidenceIds), endpoint.id]) };
-      inventory.relations.push(relation);
-    }
+      return relation;
+    }));
+    for (const relation of relations) if (relation) inventory.relations.push(relation);
   }
 }
 
