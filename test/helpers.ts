@@ -17,13 +17,13 @@ export function source(size = 1): Inventory {
   evidence: new Map(Array.from({ length: size }, (_, i) => [`e${i}`, { id: `e${i}`, path: `file${i}.ts`, revision: manifest.headSha, blobId: `blob${i}`,
     side: 'RIGHT' as const, start: 1, end: 1, text: 'changed()' }])), omissions: [], relations: [] };
 }
-export function taskInput(req: Request): { taskId: string; kind: string; expectedIds: string[]; evidence: unknown[] } {
+export function taskInput(req: Request): { requestId: string; protocolVersion: string; kind: string; expectedIds: string[]; evidence: unknown[] } {
   return JSON.parse(req.contents[0]!.parts[0]!.text);
 }
 export function result(req: Request, findings: Finding[] = []): Generation {
   const input = taskInput(req);
-  return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', taskId: input.taskId,
-    items: input.expectedIds.map(id => ({ id, status: 'reviewed', reason: 'Inspected supplied change and context' })), findings }), usage: { totalTokenCount: 500, promptTokenCount: 400 } };
+  return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', protocolVersion: input.protocolVersion, requestId: input.requestId,
+    reviewedIds: input.expectedIds, unresolved: [], findings: findings.map(f => ({ classification: 'introduced_failure', ...f })) }), usage: { totalTokenCount: 500, promptTokenCount: 400 } };
 }
 export function provider(generate: (req: Request, signal: AbortSignal) => Promise<Generation> = async req => result(req)): Provider {
   return { count: vi.fn(async () => 100), generateOnce: vi.fn(generate) };

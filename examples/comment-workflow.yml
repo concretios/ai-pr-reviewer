@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
+      actions: read
       contents: read
       pull-requests: write
     concurrency:
@@ -19,7 +20,8 @@ jobs:
       cancel-in-progress: false
       queue: max
     steps:
-      # Replace with the same audited v2 release SHA as the automatic workflow.
+      # Use the same immutable release SHA and same-line version comment as the
+      # automatic workflow; see docs/releases.md. v2 is a development placeholder.
       - uses: concretios/ai-pr-reviewer@v2
         id: review
         with:

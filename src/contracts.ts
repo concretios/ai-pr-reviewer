@@ -23,8 +23,20 @@ export type Manifest = {
 };
 export type Inventory = { atoms: Atom[]; evidence: Map<string, Evidence>; omissions: Omission[]; relations: Relation[] };
 export type LookupResult = { request: LookupRequest; evidence: Evidence[]; limited: boolean; reason?: string };
-export type Diagnostic = { taskId?: string; reason: string; disposition?: 'rejected_invalid_evidence' | 'unresolved_missing_context' };
-export type Attempt = { taskId: string; preflight: number; finishReason?: string; totalTokenCount?: number; promptTokenCount?: number; error?: string };
+export type Diagnostic = { taskId?: string; reason: string; disposition?: 'rejected_invalid_evidence' | 'unresolved_missing_context' | 'not_introduced_failure' };
+export type Attempt = { taskId: string; preflight: number; finishReason?: string; totalTokenCount?: number; promptTokenCount?: number;
+  candidatesTokenCount?: number; thoughtsTokenCount?: number; cachedContentTokenCount?: number;
+  purpose?: 'initial' | 'lookup_continuation' | 'invalid_replacement' | 'transport_retry' | 'truncation_recovery';
+  outcome?: 'pending' | 'result' | 'invalid' | 'context_request' | 'truncated' | 'blocked' | 'transport_error' | 'cancelled';
+  protocolVersion?: string; requestHash?: string; thinkingBudget?: number; error?: string };
+export type UsageReport = {
+  model: string; generationAttempts: number; reportedAttempts: number; unreportedAttempts: number;
+  totalTokens: number | null; inputTokens: number | null; outputTokens: number | null;
+  cachedTokens?: number | null; cacheReportedAttempts?: number;
+  componentAttempts: number; thoughtsTokens: number | null; thoughtsReportedAttempts: number;
+  estimatedCostUsd: number | null; pricedAttempts: number; pricingChecked: string; pricingSource: string;
+  pricingBasis: string; unavailableReason?: string;
+};
 export type Analysis = {
   status: ReviewStatus; analysisStatus: Exclude<ReviewStatus, 'superseded'>; superseded: boolean;
   atoms: Record<string, { status: 'pending' | 'reviewed' | 'unresolved'; reason: string }>;
@@ -39,6 +51,7 @@ export type Operation = {
 export type Publication = { started: boolean; status: PublicationStatus; operations: Operation[]; superseded: boolean };
 export type RunOrder = { createdAt: string; runId: string; attempt: number };
 export type FinalizedRun = {
+  usageReport?: UsageReport;
   manifest?: Manifest; analysis: Analysis; publication: Publication; omissions: Omission[];
   configurationError?: string; internalError?: string; notices: string[];
 };

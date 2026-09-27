@@ -11,7 +11,7 @@ async function files(directory: string): Promise<string[]> {
 // Any path added here changes the embedded action revision. Keep this file itself
 // in the list: it is part of what determines the hash's own output.
 export async function sourcePaths(): Promise<string[]> {
-  return [...await files('src'), ...await files('prompts'), 'action.yml', 'package-lock.json', 'scripts/build.ts', 'scripts/source-hash.ts'];
+  return [...await files('src'), ...await files('prompts'), 'action.yml', 'package-lock.json', 'scripts/build.ts', 'scripts/gemini-smoke.ts', 'scripts/source-hash.ts'];
 }
 
 export async function sourceHash(): Promise<string> {

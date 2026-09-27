@@ -38,8 +38,8 @@ try {
         count: async request => { countCalls++; return Math.ceil(JSON.stringify(request).length / 4); },
         generateOnce: async request => {
           const input = JSON.parse(request.contents[0]!.parts[0]!.text);
-          return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', taskId: input.taskId,
-            items: input.expectedIds.map((id: string) => ({ id, status: 'reviewed', reason: 'Mocked completion for historical harness replay only' })), findings: [] }),
+          return { finishReason: 'STOP', text: JSON.stringify({ kind: 'result', protocolVersion: input.protocolVersion, requestId: input.requestId,
+            reviewedIds: input.expectedIds, unresolved: [], findings: [] }),
             usage: { totalTokenCount: Math.ceil(JSON.stringify(request).length / 4) + 100 } };
         },
       } });
