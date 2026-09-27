@@ -45,7 +45,7 @@ jobs:
     steps:
       # v2 is a development placeholder. In production use the immutable release's
       # full SHA with a same-line version comment; see docs/releases.md.
-      - uses: concretios/ai-pr-reviewer@v2
+      - uses: concretios/ai-pr-reviewer@486ca9faf54287d4ac29c5c7bff5d20b2f53d558 # v2.0.0
         id: review
         with:
           github_token: ${{ github.token }}

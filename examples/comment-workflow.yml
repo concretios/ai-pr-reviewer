@@ -22,7 +22,7 @@ jobs:
     steps:
       # Use the same immutable release SHA and same-line version comment as the
       # automatic workflow; see docs/releases.md. v2 is a development placeholder.
-      - uses: concretios/ai-pr-reviewer@v2
+      - uses: concretios/ai-pr-reviewer@486ca9faf54287d4ac29c5c7bff5d20b2f53d558 # v2.0.0
         id: review
         with:
           github_token: ${{ github.token }}

@@ -42,7 +42,7 @@ describe('representative consumer workflows and bundled entry point', () => {
     for (const name of ['model', 'bot_name', 'rules_paths', 'post_inline_comments', 'comment_severity_threshold', 'max_files', 'context_depth']) expect(action.inputs[name].default).toBeUndefined();
     expect(consumer.jobs.review.permissions).toEqual({ actions: 'read', contents: 'read', 'pull-requests': 'write' });
     expect(consumer.jobs.review.concurrency.queue).toBe('max'); expect(consumer.jobs.review.concurrency['cancel-in-progress']).toBe(false);
-    expect(consumer.jobs.review.steps[0].uses).toBe('concretios/ai-pr-reviewer@v2');
+    expect(consumer.jobs.review.steps[0].uses).toMatch(/^concretios\/ai-pr-reviewer@[0-9a-f]{40}$/);
   });
   it.each(['automatic', 'manual-dry', 'manual-publish', 'comment', 'excluded', 'publication-failure', 'configuration-failure'])('exercises %s inputs, side effects, outputs, and report retention', async mode => {
     const pr = { number: 29, state: 'open', user: { login: 'dev' }, base: { repo, sha: fixture.baseSha, ref: 'main' }, head: { repo, sha: fixture.headSha, ref: 'feature' } };

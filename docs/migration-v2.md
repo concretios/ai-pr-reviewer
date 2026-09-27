@@ -9,8 +9,8 @@ v2 replaces the composite Bash runtime with a bundled Node 24 action. Consumers 
 3. Use the new consumer workflow's internal-PR gates, default-branch manual dispatch, normalized publication concurrency, and `always()` artifact upload.
 4. Pin an audited immutable v2 release by its full commit SHA and add the semantic
    version as a same-line comment, for example
-   `concretios/ai-pr-reviewer@<full-release-sha> # v2.0.0`. The documented release
-   is illustrative until v2 is published. See [the release policy](releases.md).
+   `concretios/ai-pr-reviewer@486ca9faf54287d4ac29c5c7bff5d20b2f53d558 # v2.0.0`.
+   See [the release policy](releases.md).
 
 ## Intentional behavior changes
 
