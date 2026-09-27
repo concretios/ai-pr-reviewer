@@ -2,17 +2,16 @@
 
 Advisory pull-request reviews using Gemini 2.5 Flash. The action captures committed source, batches work within explicit budgets, and persists every accepted concern in one main PR comment with linked overflow when necessary.
 
-**v2 is under development.** The release example below is illustrative until an
-immutable v2 release is published. Use an audited full commit SHA for a pilot.
-Model quality and release acceptance still require the manual evaluation described
-below.
+**Current release: [v2.0.0](https://github.com/concretios/ai-pr-reviewer/releases/tag/v2.0.0).**
+Upgrading from v1 is a breaking change; follow the [migration guide](docs/migration-v2.md).
+Paired model-quality evaluation is still pending; see [validation evidence](docs/validation-v2.md).
 
 ## Install
 
 Add a `GEMINI_API_KEY` repository secret, then copy [the consumer workflow](examples/consumer-workflow.yml). No checkout or package installation is needed in the consumer job.
 
 ```yaml
-- uses: concretios/ai-pr-reviewer@0123456789abcdef0123456789abcdef01234567 # v2.0.0
+- uses: concretios/ai-pr-reviewer@486ca9faf54287d4ac29c5c7bff5d20b2f53d558 # v2.0.0
   id: review
   with:
     github_token: ${{ github.token }}

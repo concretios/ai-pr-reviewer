@@ -18,9 +18,8 @@ the full SHA and lets Dependabot update both values together.
 
 ## Publishing a stable release
 
-1. Enable GitHub immutable releases for this repository before publishing v2.
-   Confirm the repository endpoint reports `enabled: true`; the organization does
-   not currently enforce this setting.
+1. Confirm the repository immutable-releases endpoint reports `enabled: true`.
+   It was enabled for v2.0.0; the organization does not enforce this setting.
 2. Merge the release candidate to `main`. Release only a commit whose CI passed
    checks, tests, build, and generated `dist/` and schema drift verification.
 3. Complete the required target-model smoke and representative pilot. Inspect the
@@ -32,7 +31,8 @@ the full SHA and lets Dependabot update both values together.
    to the intended commit. Treat a mismatch as a failed release.
 6. Update consumer workflows through normal pull requests. Use the release commit
    SHA plus its version comment, verify the resolved SHA, and retain the previous
-   pin in the PR for rollback.
+   pin in the PR for rollback. Update the pins in `README.md` and `examples/` in
+   the same way.
 
 Use a patch release for compatible fixes, a minor release for compatible features,
 and a major release for input, output, runtime, permission, event, or behavior
@@ -77,3 +77,12 @@ GitHub guidance: [immutable action releases](https://docs.github.com/en/actions/
 [secure action references](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/find-and-customize-actions),
 [Dependabot for actions](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/auto-update-actions),
 and [SHA comment updates](https://github.blog/changelog/2022-10-31-dependabot-now-updates-comments-in-github-actions-workflows-referencing-action-versions/).
+
+## Release record
+
+| Ref | Commit | Notes |
+| --- | --- | --- |
+| `v2.0.0` | `486ca9faf54287d4ac29c5c7bff5d20b2f53d558` | Immutable. First Node 24 release. Rollback for v2 pilots: `b2925fc25f964faab9ee0d9a2bcf15276316f96f`. |
+| `v2` | `486ca9faf54287d4ac29c5c7bff5d20b2f53d558` | Floating, opt-in. Same commit as `v2.0.0`. |
+| `v1` | `7d151e668dce51de3022b95ecfab53b0a69cc5a2` | Floating v1 tag. Three fixes ahead of `v1.0.0`; no v1.0.1 was released. |
+| `v1.0.0` | `835e62745d93704016a65f3abb98d733f159f8c1` | Frozen Bash action, before immutable releases. |
