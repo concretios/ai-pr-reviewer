@@ -48426,7 +48426,7 @@ async function runReview(options) {
 }
 
 // src/index.ts
-var actionRevision = true ? `sha256:${"342ce31dec7c50d10fcfd52760d68972e0981a02610d9835e85f2bf35d4e8199"}` : "development";
+var actionRevision = true ? `sha256:${"f12717f4125879cd147b1ae61f31545f4a59dad3625e11b775f1e552bc0ede30"}` : "development";
 var inputNames = [
   "gemini_api_key",
   "github_token",
